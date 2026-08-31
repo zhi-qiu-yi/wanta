@@ -1,4 +1,5 @@
 import type { BrowserPageState, BrowserService } from "../../../electron/browser/common.ts"
+import type { FilePreviewSelection } from "@/routes/Chat/FilePreviewPanel"
 import type { ArtifactSelection } from "@/routes/Chat/GeneratedArtifacts"
 import type { TurnOutputSelection } from "@/routes/Chat/TurnOutputs"
 import type { ConnectionClientService } from "@oomol/connection"
@@ -11,6 +12,9 @@ import { BrowserPanel } from "@/routes/Chat/BrowserPanel"
 
 const ArtifactsPanel = React.lazy(() =>
   import("@/routes/Chat/GeneratedArtifacts").then((module) => ({ default: module.ArtifactsPanel })),
+)
+const FilePreviewPanel = React.lazy(() =>
+  import("@/routes/Chat/FilePreviewPanel").then((module) => ({ default: module.FilePreviewPanel })),
 )
 const TurnOutputsPanel = React.lazy(() =>
   import("@/routes/Chat/TurnOutputs").then((module) => ({ default: module.TurnOutputsPanel })),
@@ -25,6 +29,7 @@ export const AppShellRightPanel = React.memo(function AppShellRightPanel({
   browserPanelVisible,
   browserService,
   browserState,
+  filePreviewSelection,
   handleArtifactsPanelResizeKeyDown,
   handleArtifactsPanelResizeStart,
   isArtifactsPanelResizing,
@@ -45,6 +50,7 @@ export const AppShellRightPanel = React.memo(function AppShellRightPanel({
   browserPanelVisible: boolean
   browserService: ConnectionClientService<BrowserService>
   browserState: BrowserPageState | null
+  filePreviewSelection: FilePreviewSelection | null
   handleArtifactsPanelResizeKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => void
   handleArtifactsPanelResizeStart: (event: React.PointerEvent<HTMLDivElement>) => void
   isArtifactsPanelResizing: boolean
@@ -115,6 +121,18 @@ export const AppShellRightPanel = React.memo(function AppShellRightPanel({
               <TurnOutputsPanel
                 maximized={artifactsPanelIsMaximized}
                 selection={turnOutputSelection}
+                windowControlsOnRight
+                showCollapseButton={showPanelCloseButton}
+                onCollapse={() => {
+                  setArtifactsPanelOpen(false)
+                  setArtifactsPanelMaximizedState(false)
+                }}
+                onToggleMaximized={() => setArtifactsPanelMaximizedState(!artifactsPanelIsMaximized)}
+              />
+            ) : filePreviewSelection ? (
+              <FilePreviewPanel
+                maximized={artifactsPanelIsMaximized}
+                selection={filePreviewSelection}
                 windowControlsOnRight
                 showCollapseButton={showPanelCloseButton}
                 onCollapse={() => {

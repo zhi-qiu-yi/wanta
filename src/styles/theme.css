@@ -43,6 +43,12 @@
   --font-sans:
     -apple-system, "BlinkMacSystemFont", "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Segoe UI", ui-sans-serif,
     system-ui, sans-serif;
+  --font-content:
+    -apple-system, "BlinkMacSystemFont", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei",
+    "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --font-heading:
+    -apple-system, "BlinkMacSystemFont", "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI",
+    "Microsoft YaHei", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
   --app-titlebar-height: 48px;
   --traffic-light-space: 78px;
@@ -73,6 +79,8 @@
   --success: oklch(0.44 0.13 148);
   --warning: oklch(0.55 0.14 70);
   --info: oklch(0.52 0.17 255);
+  --oo-page-title-foreground: oklch(0.46 0.14 250);
+  --oo-markdown-heading-foreground: oklch(0.46 0.14 250);
   --border: oklch(0.91 0.007 278);
   --input: oklch(0.887 0.01 287);
   --ring: oklch(0.794 0.016 278);
@@ -235,6 +243,8 @@
   --success: oklch(0.72 0.15 148);
   --warning: oklch(0.76 0.16 75);
   --info: oklch(0.72 0.16 255);
+  --oo-page-title-foreground: oklch(0.76 0.12 245);
+  --oo-markdown-heading-foreground: oklch(0.76 0.12 245);
   --border: oklch(0.312 0.008 256);
   --input: oklch(0.347 0.01 254);
   --ring: oklch(0.489 0.016 252);

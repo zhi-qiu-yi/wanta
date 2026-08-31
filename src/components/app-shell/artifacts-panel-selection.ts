@@ -1,3 +1,4 @@
+import type { FilePreviewSelection } from "@/routes/Chat/FilePreviewPanel"
 import type { ArtifactSelection } from "@/routes/Chat/GeneratedArtifacts"
 import type { TurnOutputSelection } from "@/routes/Chat/TurnOutputs"
 
@@ -6,6 +7,7 @@ export type PanelSelectionSource = "auto" | "manual"
 export type PanelSelection =
   | { kind: "empty" }
   | { kind: "artifact"; selection: ArtifactSelection; source: PanelSelectionSource }
+  | { kind: "filePreview"; selection: FilePreviewSelection; source: PanelSelectionSource }
   | { kind: "turnOutput"; selection: TurnOutputSelection; source: PanelSelectionSource }
 
 export const EMPTY_PANEL_SELECTION: PanelSelection = { kind: "empty" }
@@ -29,13 +31,20 @@ export function turnOutputPanelSelection(selection: TurnOutputSelection, source:
   return { kind: "turnOutput", selection, source }
 }
 
+export function filePreviewPanelSelection(
+  selection: FilePreviewSelection,
+  source: PanelSelectionSource,
+): PanelSelection {
+  return { kind: "filePreview", selection, source }
+}
+
 export function panelSelectionMessageId(selection: PanelSelection): string | null {
   switch (selection.kind) {
     case "artifact":
       return selection.selection.messageId
     case "turnOutput":
       return selection.selection.record.messageId
-    case "empty":
+    default:
       return null
   }
 }

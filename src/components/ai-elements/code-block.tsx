@@ -62,8 +62,19 @@ const lineNumberClassName = cn(
   "before:content-[counter(line)]",
 )
 
-const LineSpan = ({ keyedLine, showLineNumbers }: { keyedLine: KeyedLine; showLineNumbers: boolean }) => (
-  <span className={showLineNumbers ? lineNumberClassName : "block"}>
+const LineSpan = ({
+  highlighted,
+  keyedLine,
+  showLineNumbers,
+}: {
+  highlighted: boolean
+  keyedLine: KeyedLine
+  showLineNumbers: boolean
+}) => (
+  <span
+    className={cn(showLineNumbers ? lineNumberClassName : "block", highlighted && "bg-accent/50")}
+    data-line-anchor={highlighted ? "" : undefined}
+  >
     {keyedLine.tokens.length === 0
       ? "\n"
       : keyedLine.tokens.map(({ token, key }) => <TokenSpan key={key} token={token} />)}
@@ -72,6 +83,7 @@ const LineSpan = ({ keyedLine, showLineNumbers }: { keyedLine: KeyedLine; showLi
 
 export type CodeBlockProps = HTMLAttributes<HTMLDivElement> & {
   code: string
+  highlightLine?: number | null
   language?: string
   showLineNumbers?: boolean
 }
@@ -372,10 +384,12 @@ export function highlightCode(
 
 const CodeBlockBody = memo(
   ({
+    highlightLine,
     tokenized,
     showLineNumbers,
     className,
   }: {
+    highlightLine?: number | null
     tokenized: TokenizedCode
     showLineNumbers: boolean
     className?: string
@@ -392,8 +406,13 @@ const CodeBlockBody = memo(
         style={preStyle}
       >
         <code className={cn("font-mono text-sm", showLineNumbers && "[counter-increment:line_0] [counter-reset:line]")}>
-          {keyedLines.map((keyedLine) => (
-            <LineSpan key={keyedLine.key} keyedLine={keyedLine} showLineNumbers={showLineNumbers} />
+          {keyedLines.map((keyedLine, index) => (
+            <LineSpan
+              key={keyedLine.key}
+              highlighted={highlightLine === index + 1}
+              keyedLine={keyedLine}
+              showLineNumbers={showLineNumbers}
+            />
           ))}
         </code>
       </pre>
@@ -401,6 +420,7 @@ const CodeBlockBody = memo(
   },
   (prevProps, nextProps) =>
     prevProps.tokenized === nextProps.tokenized &&
+    prevProps.highlightLine === nextProps.highlightLine &&
     prevProps.showLineNumbers === nextProps.showLineNumbers &&
     prevProps.className === nextProps.className,
 )
@@ -457,10 +477,12 @@ export const CodeBlockActions = ({ children, className, ...props }: HTMLAttribut
 
 export const CodeBlockContent = ({
   code,
+  highlightLine,
   language,
   showLineNumbers = false,
 }: {
   code: string
+  highlightLine?: number | null
   language?: string
   showLineNumbers?: boolean
 }) => {
@@ -494,13 +516,14 @@ export const CodeBlockContent = ({
 
   return (
     <div className="relative overflow-auto bg-background">
-      <CodeBlockBody showLineNumbers={showLineNumbers} tokenized={tokenized} />
+      <CodeBlockBody highlightLine={highlightLine} showLineNumbers={showLineNumbers} tokenized={tokenized} />
     </div>
   )
 }
 
 export const CodeBlock = ({
   code,
+  highlightLine,
   language = "text",
   showLineNumbers = false,
   className,
@@ -514,7 +537,12 @@ export const CodeBlock = ({
     <CodeBlockContext.Provider value={contextValue}>
       <CodeBlockContainer className={className} language={normalizedLanguage} {...props}>
         {children}
-        <CodeBlockContent code={code} language={normalizedLanguage} showLineNumbers={showLineNumbers} />
+        <CodeBlockContent
+          code={code}
+          highlightLine={highlightLine}
+          language={normalizedLanguage}
+          showLineNumbers={showLineNumbers}
+        />
       </CodeBlockContainer>
     </CodeBlockContext.Provider>
   )

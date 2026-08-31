@@ -240,6 +240,8 @@
   }
 
   .oo-text-page-title {
+    color: var(--oo-page-title-foreground);
+    font-family: var(--font-heading);
     font-size: var(--oo-font-page-title);
     font-weight: 600;
     line-height: var(--oo-line-page-title);

@@ -6,8 +6,10 @@ import { describe, expect, test } from "vitest"
 import {
   artifactPanelSelection,
   EMPTY_PANEL_SELECTION,
+  filePreviewPanelSelection,
   nextArtifactPanelSelection,
   nextTurnOutputPanelSelection,
+  panelSelectionMessageId,
   releaseManualPanelSelection,
   turnOutputPanelSelection,
 } from "./artifacts-panel-selection.ts"
@@ -97,5 +99,22 @@ describe("artifacts panel selection", () => {
     const incoming = turnOutputSelection("assistant-2")
 
     expect(nextTurnOutputPanelSelection(current, incoming, false)).toEqual(turnOutputPanelSelection(incoming, "auto"))
+  })
+
+  test("manual file preview selection blocks automatic artifact replacement while open", () => {
+    const current = filePreviewPanelSelection({ path: "/tmp/index.ts" }, "manual")
+    const incoming = artifactSelection("assistant-1")
+
+    expect(nextArtifactPanelSelection(current, incoming, true)).toBe(current)
+  })
+
+  test("closing the panel releases a manual file preview selection back to auto", () => {
+    const current = filePreviewPanelSelection({ path: "/tmp/index.ts" }, "manual")
+
+    expect(releaseManualPanelSelection(current)).toEqual(filePreviewPanelSelection({ path: "/tmp/index.ts" }, "auto"))
+  })
+
+  test("file preview selection has no associated message id", () => {
+    expect(panelSelectionMessageId(filePreviewPanelSelection({ path: "/tmp/index.ts" }, "manual"))).toBeNull()
   })
 })

@@ -17,6 +17,7 @@ import {
   nativeMessageStreamdownControls,
   wrapMermaidPluginWithValidation,
 } from "./message-streamdown.tsx"
+import { FilePreviewContext } from "@/components/app-shell/file-preview-context"
 import { AppContext } from "@/components/AppContext"
 import { ThemeContext } from "@/components/theme-context"
 import { I18nContext, translate } from "@/i18n/i18n"
@@ -24,6 +25,7 @@ import { I18nContext, translate } from "@/i18n/i18n"
 function withTestProviders(
   children: React.ReactNode,
   invoke: ReturnType<typeof vi.fn> = vi.fn(async () => undefined),
+  openFilePreview: ((path: string) => void) | null = null,
 ): React.ReactElement {
   return React.createElement(
     AppContext.Provider,
@@ -40,7 +42,7 @@ function withTestProviders(
             t: (key, vars) => translate("zh-CN", key, vars),
           },
         },
-        children,
+        React.createElement(FilePreviewContext.Provider, { value: openFilePreview }, children),
       ),
     ),
   )
@@ -60,7 +62,10 @@ interface RenderedLinkSafetyModal {
   root: Root
 }
 
-async function renderLinkSafetyModal(url = "https://example.com/first"): Promise<RenderedLinkSafetyModal> {
+async function renderLinkSafetyModal(
+  url = "https://example.com/first",
+  openFilePreview: ((path: string) => void) | null = null,
+): Promise<RenderedLinkSafetyModal> {
   const host = document.createElement("div")
   document.body.append(host)
   const root = createRoot(host)
@@ -73,7 +78,9 @@ async function renderLinkSafetyModal(url = "https://example.com/first"): Promise
   }
   const render = async (nextUrl: string): Promise<void> => {
     await act(async () => {
-      root.render(withTestProviders(renderModal({ isOpen: true, onClose, onConfirm, url: nextUrl }), invoke))
+      root.render(
+        withTestProviders(renderModal({ isOpen: true, onClose, onConfirm, url: nextUrl }), invoke, openFilePreview),
+      )
     })
   }
   await render(url)
@@ -283,6 +290,54 @@ describe("messageStreamdownLinkSafety", () => {
     await act(async () => resolveOpen())
 
     expect(modal.onClose).toHaveBeenCalledOnce()
+    act(() => modal.root.unmount())
+  })
+
+  it("offers sidebar preview for local paths when the host provides a preview handler", async () => {
+    const openFilePreview = vi.fn()
+    const modal = await renderLinkSafetyModal("/Users/me/project/src/index.ts", openFilePreview)
+    const previewButton = [...document.querySelectorAll("button")].find((button) =>
+      button.textContent?.includes("在侧边栏预览"),
+    )
+
+    expect(previewButton).toBeDefined()
+
+    act(() => previewButton?.click())
+
+    expect(openFilePreview).toHaveBeenCalledWith("/Users/me/project/src/index.ts", null)
+    expect(modal.invoke).not.toHaveBeenCalled()
+    expect(modal.onConfirm).not.toHaveBeenCalled()
+    expect(modal.onClose).toHaveBeenCalledOnce()
+
+    act(() => modal.root.unmount())
+  })
+
+  it("passes the referenced line to the sidebar preview handler", async () => {
+    const openFilePreview = vi.fn()
+    const modal = await renderLinkSafetyModal(
+      "/Volumes/LEE/wanta/src/routes/Chat/AssistantTurnRenderer.tsx:362",
+      openFilePreview,
+    )
+    const previewButton = [...document.querySelectorAll("button")].find((button) =>
+      button.textContent?.includes("在侧边栏预览"),
+    )
+
+    act(() => previewButton?.click())
+
+    expect(openFilePreview).toHaveBeenCalledWith("/Volumes/LEE/wanta/src/routes/Chat/AssistantTurnRenderer.tsx", 362)
+    expect(modal.onClose).toHaveBeenCalledOnce()
+
+    act(() => modal.root.unmount())
+  })
+
+  it("hides sidebar preview for local paths without a host preview handler", async () => {
+    const modal = await renderLinkSafetyModal("/Users/me/project/src/index.ts")
+    const previewButton = [...document.querySelectorAll("button")].find((button) =>
+      button.textContent?.includes("在侧边栏预览"),
+    )
+
+    expect(previewButton).toBeUndefined()
+
     act(() => modal.root.unmount())
   })
 })

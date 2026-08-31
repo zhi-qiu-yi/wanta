@@ -62,6 +62,7 @@ import {
   writeStoredDefaultAgentKind,
   writeStoredAgentComposerPrefs,
 } from "./composer-agent-prefs.ts"
+import { FilePreviewContext } from "./file-preview-context.ts"
 import { KnowledgeContextBar } from "./KnowledgeContextBar.tsx"
 import { isPendingChatCaughtUp, pendingChatTransitionForActiveSession } from "./pending-chat.ts"
 import {
@@ -658,11 +659,13 @@ export function AppShell({ auth }: { auth: UseAuth }) {
     artifactsPanelOpen,
     artifactsPanelShellRef,
     artifactsPanelVisible,
+    filePreviewSelection,
     handleArtifactsAvailable,
     handleArtifactsOpen,
     handleArtifactsPanelResizeKeyDown,
     handleArtifactsPanelResizeStart,
     handleArtifactsReset,
+    handleFilePreviewOpen,
     handleTurnOutputAvailable,
     handleTurnOutputOpen,
     hasPanelSelection,
@@ -1769,6 +1772,14 @@ export function AppShell({ auth }: { auth: UseAuth }) {
     },
     [closeBrowserPanel, handleTurnOutputOpen, setArtifactsPanelMaximizedState],
   )
+  const handleFilePreviewOpenWithBrowserClose = React.useCallback(
+    (path: string, line?: number | null): void => {
+      closeBrowserPanel()
+      setArtifactsPanelMaximizedState(false)
+      handleFilePreviewOpen(path, line)
+    },
+    [closeBrowserPanel, handleFilePreviewOpen, setArtifactsPanelMaximizedState],
+  )
   const handleOpenKnowledgeLibrary = React.useCallback((): void => {
     setRoute("knowledge")
   }, [])
@@ -2081,347 +2092,350 @@ export function AppShell({ auth }: { auth: UseAuth }) {
   }
 
   return (
-    <div
-      ref={appChromeRef}
-      className={cn(
-        "oo-app-chrome grid h-full text-foreground",
-        sidebarCollapsed && "oo-sidebar-collapsed",
-        isSidebarRestoring && "oo-sidebar-restoring",
-        isSidebarResizing && "oo-sidebar-resizing",
-        isArtifactsPanelResizing && "oo-artifacts-panel-resizing",
-      )}
-      style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
-    >
-      <AppShellNavigationSidebar
-        account={auth.state?.account}
-        authenticated={authenticated}
-        activeRoute={route}
-        selectedSessionId={selectedSessionId}
-        cloudEnabled={oomolEnabled}
-        collapsed={sidebarCollapsed}
-        collapsedProjectIds={collapsedProjectIds}
-        hasUnreadSession={hasUnreadSession}
-        hasUnreadTeam={hasUnreadTeam}
-        hasUnreadTeams={hasUnreadTeams}
-        isSessionRunning={isSessionRunning}
-        loggingOut={auth.loggingOut}
-        loggingIn={auth.loggingIn}
-        newChatLabel={newChatLabel}
-        projectPinnedGroups={projectPinnedGroups}
-        projectPinnedSessions={projectPinnedSessions}
-        projectRegularGroups={projectRegularGroups}
-        projectSessions={visibleProjectSessions}
-        projectSidebarGroups={projectSidebarGroups}
-        restoring={isSidebarRestoring}
-        sessionsError={sessionsError}
-        showKnowledge={knowledgeBaseBetaEnabled}
-        sidebarSegment={sidebarSegment}
-        sidebarSessionGroups={sidebarSessionGroups}
-        taskSessions={visibleTaskSessions}
-        width={sidebarWidth}
-        workspace={teamWorkspace}
-        workspaceSwitching={workspaceNavigationSwitching}
-        onArchiveProjectRequest={projectActions.requestArchive}
-        onArchiveSessionRequest={sessionActions.requestArchive}
-        onLogout={auth.logout}
-        onLogin={() => void auth.login()}
-        onManageTasks={() => setTasksDialogOpen(true)}
-        onNavigate={setRoute}
-        onNewSession={handleNewSessionWithKnowledgeReset}
-        onOpenConnections={handleOpenConnectionsCommand}
-        onOpenSearch={handleOpenSearch}
-        onPinProject={projectActions.handlePin}
-        onPinSession={sessionActions.handlePin}
-        onProjectExpandedChange={handleProjectSidebarExpandedChange}
-        onRemoveProjectRequest={projectActions.requestRemove}
-        onRenameProjectRequest={projectActions.requestRename}
-        onWorkspaceSwitchStart={handleWorkspaceSwitchStart}
-        onRenameSessionRequest={sessionActions.requestRename}
-        onSelectProjectDraft={handleOpenProjectDraft}
-        onSelectProjectFolder={handleSelectProjectFolder}
-        onSelectSession={handleSelectSession}
-        onSetSidebarSegment={setSidebarSegment}
-        onSetTaskSortMode={setTaskSortMode}
-        onShowProjectInFolder={projectActions.handleShowInFolder}
-        onSidebarResizeKeyDown={handleSidebarResizeKeyDown}
-        onSidebarResizeStart={handleSidebarResizeStart}
-        onToggleSidebar={handleToggleSidebar}
-        taskSortMode={taskSortMode}
-      />
+    <FilePreviewContext.Provider value={handleFilePreviewOpenWithBrowserClose}>
+      <div
+        ref={appChromeRef}
+        className={cn(
+          "oo-app-chrome grid h-full text-foreground",
+          sidebarCollapsed && "oo-sidebar-collapsed",
+          isSidebarRestoring && "oo-sidebar-restoring",
+          isSidebarResizing && "oo-sidebar-resizing",
+          isArtifactsPanelResizing && "oo-artifacts-panel-resizing",
+        )}
+        style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
+      >
+        <AppShellNavigationSidebar
+          account={auth.state?.account}
+          authenticated={authenticated}
+          activeRoute={route}
+          selectedSessionId={selectedSessionId}
+          cloudEnabled={oomolEnabled}
+          collapsed={sidebarCollapsed}
+          collapsedProjectIds={collapsedProjectIds}
+          hasUnreadSession={hasUnreadSession}
+          hasUnreadTeam={hasUnreadTeam}
+          hasUnreadTeams={hasUnreadTeams}
+          isSessionRunning={isSessionRunning}
+          loggingOut={auth.loggingOut}
+          loggingIn={auth.loggingIn}
+          newChatLabel={newChatLabel}
+          projectPinnedGroups={projectPinnedGroups}
+          projectPinnedSessions={projectPinnedSessions}
+          projectRegularGroups={projectRegularGroups}
+          projectSessions={visibleProjectSessions}
+          projectSidebarGroups={projectSidebarGroups}
+          restoring={isSidebarRestoring}
+          sessionsError={sessionsError}
+          showKnowledge={knowledgeBaseBetaEnabled}
+          sidebarSegment={sidebarSegment}
+          sidebarSessionGroups={sidebarSessionGroups}
+          taskSessions={visibleTaskSessions}
+          width={sidebarWidth}
+          workspace={teamWorkspace}
+          workspaceSwitching={workspaceNavigationSwitching}
+          onArchiveProjectRequest={projectActions.requestArchive}
+          onArchiveSessionRequest={sessionActions.requestArchive}
+          onLogout={auth.logout}
+          onLogin={() => void auth.login()}
+          onManageTasks={() => setTasksDialogOpen(true)}
+          onNavigate={setRoute}
+          onNewSession={handleNewSessionWithKnowledgeReset}
+          onOpenConnections={handleOpenConnectionsCommand}
+          onOpenSearch={handleOpenSearch}
+          onPinProject={projectActions.handlePin}
+          onPinSession={sessionActions.handlePin}
+          onProjectExpandedChange={handleProjectSidebarExpandedChange}
+          onRemoveProjectRequest={projectActions.requestRemove}
+          onRenameProjectRequest={projectActions.requestRename}
+          onWorkspaceSwitchStart={handleWorkspaceSwitchStart}
+          onRenameSessionRequest={sessionActions.requestRename}
+          onSelectProjectDraft={handleOpenProjectDraft}
+          onSelectProjectFolder={handleSelectProjectFolder}
+          onSelectSession={handleSelectSession}
+          onSetSidebarSegment={setSidebarSegment}
+          onSetTaskSortMode={setTaskSortMode}
+          onShowProjectInFolder={projectActions.handleShowInFolder}
+          onSidebarResizeKeyDown={handleSidebarResizeKeyDown}
+          onSidebarResizeStart={handleSidebarResizeStart}
+          onToggleSidebar={handleToggleSidebar}
+          taskSortMode={taskSortMode}
+        />
 
-      {/* 右：主区（顶部工具条 + 内容） */}
-      <div className="flex min-h-0 min-w-0 overflow-hidden">
-        <div
-          className={cn(
-            "grid min-w-0 flex-1 grid-rows-[var(--app-titlebar-height)_minmax(0,1fr)] overflow-hidden",
-            artifactsPanelIsMaximized && "hidden",
-          )}
-        >
-          <AppShellMainTitlebar
-            activeSession={activeSession ?? null}
-            appUpdate={appUpdate}
-            artifactsPanelOpen={artifactsPanelOpen}
-            artifactsToggleIcon={ArtifactsToggleIcon}
-            artifactsToggleLabel={artifactsToggleLabel}
-            billingCacheScope={billingCacheScope}
-            browserPanelOpen={browserPanelVisible}
-            browserToggleLabel={browserToggleLabel}
-            isSidebarRestoring={isSidebarRestoring}
-            sharedConnectorCount={sharedConnectorCount}
-            showArtifactsToggle={showArtifactsToggle}
-            showBrowserToggle={showBrowserToggle}
-            sidebarCollapsed={sidebarCollapsed}
-            titlebarEditable={titlebarEditable}
-            titlebarBreadcrumbs={titlebarBreadcrumbs}
-            titlebarTitle={titlebarTitle}
-            windowControlsOnRight={!rightPanelVisible}
-            workspace={teamWorkspace.activeWorkspace}
-            onArtifactsToggle={handleArtifactsToggle}
-            onBrowserToggle={handleBrowserToggle}
-            onOpenSearch={handleOpenSearch}
-            onRenameSession={sessionActions.handleRename}
-            onTitlebarBreadcrumbNavigate={(path) => {
-              setKnowledgeDirectory(normalizeKnowledgePath(path))
-              setKnowledgeTitlebarNavigationVersion((version) => version + 1)
-            }}
-            onToggleSidebar={handleToggleSidebar}
-            onViewBilling={oomolEnabled ? handleViewBilling : undefined}
-          />
+        {/* 右：主区（顶部工具条 + 内容） */}
+        <div className="flex min-h-0 min-w-0 overflow-hidden">
+          <div
+            className={cn(
+              "grid min-w-0 flex-1 grid-rows-[var(--app-titlebar-height)_minmax(0,1fr)] overflow-hidden",
+              artifactsPanelIsMaximized && "hidden",
+            )}
+          >
+            <AppShellMainTitlebar
+              activeSession={activeSession ?? null}
+              appUpdate={appUpdate}
+              artifactsPanelOpen={artifactsPanelOpen}
+              artifactsToggleIcon={ArtifactsToggleIcon}
+              artifactsToggleLabel={artifactsToggleLabel}
+              billingCacheScope={billingCacheScope}
+              browserPanelOpen={browserPanelVisible}
+              browserToggleLabel={browserToggleLabel}
+              isSidebarRestoring={isSidebarRestoring}
+              sharedConnectorCount={sharedConnectorCount}
+              showArtifactsToggle={showArtifactsToggle}
+              showBrowserToggle={showBrowserToggle}
+              sidebarCollapsed={sidebarCollapsed}
+              titlebarEditable={titlebarEditable}
+              titlebarBreadcrumbs={titlebarBreadcrumbs}
+              titlebarTitle={titlebarTitle}
+              windowControlsOnRight={!rightPanelVisible}
+              workspace={teamWorkspace.activeWorkspace}
+              onArtifactsToggle={handleArtifactsToggle}
+              onBrowserToggle={handleBrowserToggle}
+              onOpenSearch={handleOpenSearch}
+              onRenameSession={sessionActions.handleRename}
+              onTitlebarBreadcrumbNavigate={(path) => {
+                setKnowledgeDirectory(normalizeKnowledgePath(path))
+                setKnowledgeTitlebarNavigationVersion((version) => version + 1)
+              }}
+              onToggleSidebar={handleToggleSidebar}
+              onViewBilling={oomolEnabled ? handleViewBilling : undefined}
+            />
 
-          <main className="oo-content-surface min-h-0 min-w-0 overflow-hidden">
-            <React.Suspense fallback={<RouteLoadingFallback />}>
-              {route === "connections" ? (
-                linkRuntime.state?.active === "openconnector" ? (
-                  <OpenConnectorConnectionsPanel runtime={linkRuntime} onOpenSettings={handleOpenSettingsCommand} />
-                ) : oomolLinkActive ? (
-                  <div className="h-full min-h-0 p-0">
-                    <ConnectionsPanel
-                      accessContext={connectionAccessContext}
-                      canManageConnections={canManageWorkspaceConnections}
-                      connections={connections}
-                      requestedFilter={connectionCatalogFilter}
-                      selectedAppId={selectedConnectionAppId}
-                      selectedService={selectedService}
-                    />
-                  </div>
-                ) : (
-                  <SelfHostedConnectionsPlaceholder onOpenSettings={() => setRoute("settings")} />
-                )
-              ) : route === "skills" ? (
-                <SkillsRoute
-                  cloudEnabled={oomolEnabled}
-                  connectedProvidersLoading={activeProvidersLoading}
-                  teamSkills={teamSkills}
-                  providerSkillRecommendationsState={providerSkillRecommendations}
-                  workspace={teamWorkspace}
-                />
-              ) : route === "knowledge" && knowledgeBaseBetaEnabled ? (
-                <KnowledgeRoute
-                  currentDirectory={knowledgeDirectory}
-                  knowledge={knowledgeLibrary}
-                  titlebarNavigationVersion={knowledgeTitlebarNavigationVersion}
-                  onCurrentDirectoryChange={setKnowledgeDirectory}
-                  onStartChat={handleStartKnowledgeChat}
-                />
-              ) : route === "teams" && oomolEnabled ? (
-                <TeamManagementRoute
-                  connectedProvidersLoading={activeProvidersLoading}
-                  teamSkills={teamSkills}
-                  providerSkillRecommendationsState={providerSkillRecommendations}
-                  workspace={teamWorkspace}
-                />
-              ) : (
-                <div className="flex h-full min-h-0 overflow-hidden">
-                  <div className="min-w-0 flex-1 overflow-hidden">
-                    <ChatArea
-                      activeSessionId={activeChatSessionId}
-                      agentKind={displayedAgentKind}
-                      agentModesEnabled={agentModesEnabled}
-                      attachmentsEnabled={attachmentsEnabled}
-                      modelRoutingEnabled={modelRoutingEnabled}
-                      agentModelId={activeAgentSelection?.modelId}
-                      agentEffortId={activeAgentSelection?.effortId}
-                      onSelectAgentModel={handleSelectAgentModel}
-                      onSelectAgentEffort={handleSelectAgentEffort}
-                      onSelectAgentKind={handleSelectAgentKind}
-                      billingCacheScope={billingCacheScope}
-                      billingRequestScope={billingRequestScope}
-                      composerDraftKey={activeComposerDraftKey}
-                      messages={bridgeInitialSendPending ? [] : messages}
-                      knowledgeBaseIds={activeKnowledgeBaseIds}
-                      knowledgeEnabled={knowledgeBaseBetaEnabled}
-                      knowledgeError={
-                        knowledgeLibrary.error ? userFacingErrorDescription(knowledgeLibrary.error, t) : null
-                      }
-                      knowledgeItems={knowledgeLibrary.items}
-                      knowledgeLoading={knowledgeLibrary.loading}
-                      modelRequired={modelRequired}
-                      permissionMode={displayedPermissionMode}
-                      pendingPermissions={bridgeInitialSendPending ? [] : pendingPermissions}
-                      pendingQuestions={bridgeInitialSendPending ? [] : pendingQuestions}
-                      status={displayedStatus}
-                      activity={bridgeInitialSendPending ? null : activity}
-                      showEmptyState={showChatEmptyState}
-                      bootstrapping={chatBootstrapping}
-                      startupError={startupError}
-                      onStartupRetry={
-                        workspaceStartupError
-                          ? retryWorkspaceActivation
-                          : sessionSnapshotError
-                            ? retrySessionSnapshot
-                            : undefined
-                      }
-                      error={error}
-                      emptyTitle={chatEmptyTitle}
-                      generatedArtifacts={latestArtifactSelection}
-                      historyScope={billingCacheScope}
-                      submitDisabled={chatSubmitDisabled}
-                      willQueueMessage={Boolean(
-                        activeChatSessionId && (!chatTurnAllowsDirectSend(activeChatTurnState) || isSendInFlight()),
-                      )}
-                      initialComposerState={initialComposerState}
-                      initialSendPending={initialSendPending}
-                      composerFocusRequest={composerFocusRequest}
-                      cloudModelsEnabled={runtimeCapabilities?.oomolCloudModels === true}
-                      voiceEnabled={runtimeCapabilities?.voice === true}
-                      canManageWorkspaceConnections={oomolLinkActive && canManageWorkspaceConnections}
-                      emptyStateConnectionSummary={oomolLinkActive ? emptyStateConnectionSummary : null}
-                      teamSkillEntryVisible={oomolEnabled && teamSkillEntryVisible}
-                      teamSkillShowcaseItems={oomolEnabled ? teamSkillShowcaseItems : []}
-                      teamSkillPendingInstallCount={oomolEnabled ? recommendedSkillPendingInstallCount : 0}
-                      teamSkills={oomolEnabled ? teamSkills.chatContextSkills : []}
-                      selfManagedSetup={
-                        appSettings.settings.operatingMode === "self-managed" &&
-                        !appSettings.settings.selfManagedSetupDismissed
-                          ? {
-                              onConfigureOpenConnector: handleOpenSettingsCommand,
-                              onDismiss: () => {
-                                void appSettings.setSelfManagedSetupDismissed(true).catch((error: unknown) => {
-                                  reportRendererHandledError(
-                                    "settings",
-                                    "dismiss self-managed setup reminder failed",
-                                    error,
-                                  )
-                                })
-                              },
-                            }
-                          : undefined
-                      }
-                      providers={oomolLinkActive ? activeProviders : []}
-                      queueHeld={activeQueueHeld}
-                      queuedMessages={activeQueuedMessages}
-                      contextBar={composerProjectContext}
-                      pinnedContextBar={pinnedKnowledgeContextBar}
-                      placeholder={
-                        startupError
-                          ? t("error.agent.title")
-                          : modelRequired
-                            ? t("chat.modelRequiredPlaceholder")
-                            : chatReady
-                              ? t(linksEnabled ? "chat.inputPlaceholder" : "chat.inputPlaceholderLocal")
-                              : t("chat.agentStarting")
-                      }
-                      onComposerStateChange={handleComposerStateChange}
-                      onSend={handleSend}
-                      onAnswerQuestion={handleAnswerQuestion}
-                      onAnswerPermission={handleAnswerPermission}
-                      onPermissionModeChange={handlePermissionModeChange}
-                      onRejectQuestion={handleRejectQuestion}
-                      questionDrafts={questionDrafts}
-                      onStop={handleChatStop}
-                      onQueuedMessageMove={handleQueuedMessageMove}
-                      onQueuedMessageRemove={handleQueuedMessageRemove}
-                      onQueuedMessageResume={handleQueuedMessageResume}
-                      onAuthorize={handleAuthorize}
-                      onRecover={handleChatErrorRecovery}
-                      onRetryFresh={handleRetryFresh}
-                      onArtifactsOpen={handleArtifactsOpenWithBrowserClose}
-                      onArtifactsAvailable={handleArtifactsAvailable}
-                      onTurnOutputOpen={handleTurnOutputOpenWithBrowserClose}
-                      onTurnOutputAvailable={handleTurnOutputAvailable}
-                      onOpenConnections={linksEnabled ? handleOpenConnectionsCommand : undefined}
-                      onOpenConnectionProvider={oomolLinkActive ? handleOpenChatConnectionProvider : undefined}
-                      onOpenKnowledgeLibrary={handleOpenKnowledgeLibrary}
-                      onOpenTeams={oomolEnabled ? handleOpenTeams : undefined}
-                      onSelectKnowledgeBase={handleAddKnowledgeBaseReference}
-                      onViewBilling={oomolEnabled ? handleViewBilling : undefined}
-                    />
-                  </div>
-                  <AppShellConnectionDrawer
-                    accessContext={connectionAccessContext}
-                    authIntent={chatConnectionAuthIntent}
-                    canManageConnections={oomolLinkActive && canManageWorkspaceConnections}
-                    connections={connections}
-                    onConnectionReady={handleChatConnectionReady}
-                    selectedService={chatConnectionSelectedService}
-                    visible={oomolLinkActive && chatConnectionDrawerVisible}
-                    onClose={handleCloseChatConnectionDrawer}
+            <main className="oo-content-surface min-h-0 min-w-0 overflow-hidden">
+              <React.Suspense fallback={<RouteLoadingFallback />}>
+                {route === "connections" ? (
+                  linkRuntime.state?.active === "openconnector" ? (
+                    <OpenConnectorConnectionsPanel runtime={linkRuntime} onOpenSettings={handleOpenSettingsCommand} />
+                  ) : oomolLinkActive ? (
+                    <div className="h-full min-h-0 p-0">
+                      <ConnectionsPanel
+                        accessContext={connectionAccessContext}
+                        canManageConnections={canManageWorkspaceConnections}
+                        connections={connections}
+                        requestedFilter={connectionCatalogFilter}
+                        selectedAppId={selectedConnectionAppId}
+                        selectedService={selectedService}
+                      />
+                    </div>
+                  ) : (
+                    <SelfHostedConnectionsPlaceholder onOpenSettings={() => setRoute("settings")} />
+                  )
+                ) : route === "skills" ? (
+                  <SkillsRoute
+                    cloudEnabled={oomolEnabled}
+                    connectedProvidersLoading={activeProvidersLoading}
+                    teamSkills={teamSkills}
+                    providerSkillRecommendationsState={providerSkillRecommendations}
+                    workspace={teamWorkspace}
                   />
-                </div>
-              )}
-            </React.Suspense>
-          </main>
+                ) : route === "knowledge" && knowledgeBaseBetaEnabled ? (
+                  <KnowledgeRoute
+                    currentDirectory={knowledgeDirectory}
+                    knowledge={knowledgeLibrary}
+                    titlebarNavigationVersion={knowledgeTitlebarNavigationVersion}
+                    onCurrentDirectoryChange={setKnowledgeDirectory}
+                    onStartChat={handleStartKnowledgeChat}
+                  />
+                ) : route === "teams" && oomolEnabled ? (
+                  <TeamManagementRoute
+                    connectedProvidersLoading={activeProvidersLoading}
+                    teamSkills={teamSkills}
+                    providerSkillRecommendationsState={providerSkillRecommendations}
+                    workspace={teamWorkspace}
+                  />
+                ) : (
+                  <div className="flex h-full min-h-0 overflow-hidden">
+                    <div className="min-w-0 flex-1 overflow-hidden">
+                      <ChatArea
+                        activeSessionId={activeChatSessionId}
+                        agentKind={displayedAgentKind}
+                        agentModesEnabled={agentModesEnabled}
+                        attachmentsEnabled={attachmentsEnabled}
+                        modelRoutingEnabled={modelRoutingEnabled}
+                        agentModelId={activeAgentSelection?.modelId}
+                        agentEffortId={activeAgentSelection?.effortId}
+                        onSelectAgentModel={handleSelectAgentModel}
+                        onSelectAgentEffort={handleSelectAgentEffort}
+                        onSelectAgentKind={handleSelectAgentKind}
+                        billingCacheScope={billingCacheScope}
+                        billingRequestScope={billingRequestScope}
+                        composerDraftKey={activeComposerDraftKey}
+                        messages={bridgeInitialSendPending ? [] : messages}
+                        knowledgeBaseIds={activeKnowledgeBaseIds}
+                        knowledgeEnabled={knowledgeBaseBetaEnabled}
+                        knowledgeError={
+                          knowledgeLibrary.error ? userFacingErrorDescription(knowledgeLibrary.error, t) : null
+                        }
+                        knowledgeItems={knowledgeLibrary.items}
+                        knowledgeLoading={knowledgeLibrary.loading}
+                        modelRequired={modelRequired}
+                        permissionMode={displayedPermissionMode}
+                        pendingPermissions={bridgeInitialSendPending ? [] : pendingPermissions}
+                        pendingQuestions={bridgeInitialSendPending ? [] : pendingQuestions}
+                        status={displayedStatus}
+                        activity={bridgeInitialSendPending ? null : activity}
+                        showEmptyState={showChatEmptyState}
+                        bootstrapping={chatBootstrapping}
+                        startupError={startupError}
+                        onStartupRetry={
+                          workspaceStartupError
+                            ? retryWorkspaceActivation
+                            : sessionSnapshotError
+                              ? retrySessionSnapshot
+                              : undefined
+                        }
+                        error={error}
+                        emptyTitle={chatEmptyTitle}
+                        generatedArtifacts={latestArtifactSelection}
+                        historyScope={billingCacheScope}
+                        submitDisabled={chatSubmitDisabled}
+                        willQueueMessage={Boolean(
+                          activeChatSessionId && (!chatTurnAllowsDirectSend(activeChatTurnState) || isSendInFlight()),
+                        )}
+                        initialComposerState={initialComposerState}
+                        initialSendPending={initialSendPending}
+                        composerFocusRequest={composerFocusRequest}
+                        cloudModelsEnabled={runtimeCapabilities?.oomolCloudModels === true}
+                        voiceEnabled={runtimeCapabilities?.voice === true}
+                        canManageWorkspaceConnections={oomolLinkActive && canManageWorkspaceConnections}
+                        emptyStateConnectionSummary={oomolLinkActive ? emptyStateConnectionSummary : null}
+                        teamSkillEntryVisible={oomolEnabled && teamSkillEntryVisible}
+                        teamSkillShowcaseItems={oomolEnabled ? teamSkillShowcaseItems : []}
+                        teamSkillPendingInstallCount={oomolEnabled ? recommendedSkillPendingInstallCount : 0}
+                        teamSkills={oomolEnabled ? teamSkills.chatContextSkills : []}
+                        selfManagedSetup={
+                          appSettings.settings.operatingMode === "self-managed" &&
+                          !appSettings.settings.selfManagedSetupDismissed
+                            ? {
+                                onConfigureOpenConnector: handleOpenSettingsCommand,
+                                onDismiss: () => {
+                                  void appSettings.setSelfManagedSetupDismissed(true).catch((error: unknown) => {
+                                    reportRendererHandledError(
+                                      "settings",
+                                      "dismiss self-managed setup reminder failed",
+                                      error,
+                                    )
+                                  })
+                                },
+                              }
+                            : undefined
+                        }
+                        providers={oomolLinkActive ? activeProviders : []}
+                        queueHeld={activeQueueHeld}
+                        queuedMessages={activeQueuedMessages}
+                        contextBar={composerProjectContext}
+                        pinnedContextBar={pinnedKnowledgeContextBar}
+                        placeholder={
+                          startupError
+                            ? t("error.agent.title")
+                            : modelRequired
+                              ? t("chat.modelRequiredPlaceholder")
+                              : chatReady
+                                ? t(linksEnabled ? "chat.inputPlaceholder" : "chat.inputPlaceholderLocal")
+                                : t("chat.agentStarting")
+                        }
+                        onComposerStateChange={handleComposerStateChange}
+                        onSend={handleSend}
+                        onAnswerQuestion={handleAnswerQuestion}
+                        onAnswerPermission={handleAnswerPermission}
+                        onPermissionModeChange={handlePermissionModeChange}
+                        onRejectQuestion={handleRejectQuestion}
+                        questionDrafts={questionDrafts}
+                        onStop={handleChatStop}
+                        onQueuedMessageMove={handleQueuedMessageMove}
+                        onQueuedMessageRemove={handleQueuedMessageRemove}
+                        onQueuedMessageResume={handleQueuedMessageResume}
+                        onAuthorize={handleAuthorize}
+                        onRecover={handleChatErrorRecovery}
+                        onRetryFresh={handleRetryFresh}
+                        onArtifactsOpen={handleArtifactsOpenWithBrowserClose}
+                        onArtifactsAvailable={handleArtifactsAvailable}
+                        onTurnOutputOpen={handleTurnOutputOpenWithBrowserClose}
+                        onTurnOutputAvailable={handleTurnOutputAvailable}
+                        onOpenConnections={linksEnabled ? handleOpenConnectionsCommand : undefined}
+                        onOpenConnectionProvider={oomolLinkActive ? handleOpenChatConnectionProvider : undefined}
+                        onOpenKnowledgeLibrary={handleOpenKnowledgeLibrary}
+                        onOpenTeams={oomolEnabled ? handleOpenTeams : undefined}
+                        onSelectKnowledgeBase={handleAddKnowledgeBaseReference}
+                        onViewBilling={oomolEnabled ? handleViewBilling : undefined}
+                      />
+                    </div>
+                    <AppShellConnectionDrawer
+                      accessContext={connectionAccessContext}
+                      authIntent={chatConnectionAuthIntent}
+                      canManageConnections={oomolLinkActive && canManageWorkspaceConnections}
+                      connections={connections}
+                      onConnectionReady={handleChatConnectionReady}
+                      selectedService={chatConnectionSelectedService}
+                      visible={oomolLinkActive && chatConnectionDrawerVisible}
+                      onClose={handleCloseChatConnectionDrawer}
+                    />
+                  </div>
+                )}
+              </React.Suspense>
+            </main>
+          </div>
+
+          <AppShellRightPanel
+            artifactSelection={artifactSelection}
+            artifactsPanelIsMaximized={artifactsPanelIsMaximized}
+            artifactsPanelMaxWidthState={artifactsPanelMaxWidthState}
+            artifactsPanelShellRef={artifactsPanelShellRef}
+            artifactsPanelVisible={artifactsPanelVisible}
+            browserPanelVisible={browserPanelVisible}
+            browserService={browserService}
+            browserState={browserState}
+            filePreviewSelection={filePreviewSelection}
+            handleArtifactsPanelResizeKeyDown={handleArtifactsPanelResizeKeyDown}
+            handleArtifactsPanelResizeStart={handleArtifactsPanelResizeStart}
+            isArtifactsPanelResizing={isArtifactsPanelResizing}
+            isArtifactsPanelDragCollapsed={isArtifactsPanelDragCollapsed}
+            onCloseBrowser={closeBrowserPanel}
+            rightPanelVisible={rightPanelVisible}
+            setArtifactsPanelMaximizedState={setArtifactsPanelMaximizedState}
+            setArtifactsPanelOpen={setArtifactsPanelOpen}
+            showPanelCloseButton={globalThis.wanta?.platform !== "win32"}
+            turnOutputSelection={turnOutputSelection}
+            visibleRightPanelWidth={visibleRightPanelWidth}
+          />
         </div>
 
-        <AppShellRightPanel
-          artifactSelection={artifactSelection}
-          artifactsPanelIsMaximized={artifactsPanelIsMaximized}
-          artifactsPanelMaxWidthState={artifactsPanelMaxWidthState}
-          artifactsPanelShellRef={artifactsPanelShellRef}
-          artifactsPanelVisible={artifactsPanelVisible}
-          browserPanelVisible={browserPanelVisible}
-          browserService={browserService}
-          browserState={browserState}
-          handleArtifactsPanelResizeKeyDown={handleArtifactsPanelResizeKeyDown}
-          handleArtifactsPanelResizeStart={handleArtifactsPanelResizeStart}
-          isArtifactsPanelResizing={isArtifactsPanelResizing}
-          isArtifactsPanelDragCollapsed={isArtifactsPanelDragCollapsed}
-          onCloseBrowser={closeBrowserPanel}
-          rightPanelVisible={rightPanelVisible}
-          setArtifactsPanelMaximizedState={setArtifactsPanelMaximizedState}
-          setArtifactsPanelOpen={setArtifactsPanelOpen}
-          showPanelCloseButton={globalThis.wanta?.platform !== "win32"}
-          turnOutputSelection={turnOutputSelection}
-          visibleRightPanelWidth={visibleRightPanelWidth}
+        <AppShellSessionProjectDialogs
+          archiveConfirming={sessionActions.archiveConfirming}
+          archiveProjectConfirming={projectActions.archiveConfirming}
+          archiveProjectTarget={projectActions.archiveTarget}
+          archiveSession={sessionActions.archiveTarget}
+          openSearch={searchOpen}
+          removeProjectConfirming={projectActions.removeConfirming}
+          removeProjectTarget={projectActions.removeTarget}
+          renameProjectTarget={projectActions.renameTarget}
+          renameSession={sessionActions.renameTarget}
+          sessions={visibleSessions}
+          onArchiveProject={handleArchiveProjectDialog}
+          onArchiveSession={handleArchiveSessionDialog}
+          onCloseArchiveProject={projectActions.closeArchive}
+          onCloseArchiveSession={sessionActions.closeArchive}
+          onCloseRemoveProject={projectActions.closeRemove}
+          onCloseRenameProject={projectActions.closeRename}
+          onCloseRenameSession={sessionActions.closeRename}
+          onCloseSearch={handleCloseSearch}
+          onRemoveProject={handleRemoveProjectDialog}
+          onRenameProject={handleRenameProjectDialog}
+          onRenameSession={sessionActions.handleRename}
+          onSearchSelect={handleSearchSelect}
         />
+        <React.Suspense fallback={null}>
+          <TasksDialog
+            archiveSessions={archiveSessionsWithRuntimeCleanup}
+            isSessionRunning={isSessionRunning}
+            open={tasksDialogOpen}
+            removeSessions={removeSessionsWithRuntimeCleanup}
+            sessions={visibleTaskSessions}
+            sortMode={taskSortMode}
+            onClose={() => setTasksDialogOpen(false)}
+            onSortModeChange={setTaskSortMode}
+          />
+        </React.Suspense>
       </div>
-
-      <AppShellSessionProjectDialogs
-        archiveConfirming={sessionActions.archiveConfirming}
-        archiveProjectConfirming={projectActions.archiveConfirming}
-        archiveProjectTarget={projectActions.archiveTarget}
-        archiveSession={sessionActions.archiveTarget}
-        openSearch={searchOpen}
-        removeProjectConfirming={projectActions.removeConfirming}
-        removeProjectTarget={projectActions.removeTarget}
-        renameProjectTarget={projectActions.renameTarget}
-        renameSession={sessionActions.renameTarget}
-        sessions={visibleSessions}
-        onArchiveProject={handleArchiveProjectDialog}
-        onArchiveSession={handleArchiveSessionDialog}
-        onCloseArchiveProject={projectActions.closeArchive}
-        onCloseArchiveSession={sessionActions.closeArchive}
-        onCloseRemoveProject={projectActions.closeRemove}
-        onCloseRenameProject={projectActions.closeRename}
-        onCloseRenameSession={sessionActions.closeRename}
-        onCloseSearch={handleCloseSearch}
-        onRemoveProject={handleRemoveProjectDialog}
-        onRenameProject={handleRenameProjectDialog}
-        onRenameSession={sessionActions.handleRename}
-        onSearchSelect={handleSearchSelect}
-      />
-      <React.Suspense fallback={null}>
-        <TasksDialog
-          archiveSessions={archiveSessionsWithRuntimeCleanup}
-          isSessionRunning={isSessionRunning}
-          open={tasksDialogOpen}
-          removeSessions={removeSessionsWithRuntimeCleanup}
-          sessions={visibleTaskSessions}
-          sortMode={taskSortMode}
-          onClose={() => setTasksDialogOpen(false)}
-          onSortModeChange={setTaskSortMode}
-        />
-      </React.Suspense>
-    </div>
+    </FilePreviewContext.Provider>
   )
 }

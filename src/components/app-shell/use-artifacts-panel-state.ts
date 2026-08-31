@@ -1,5 +1,6 @@
 import type { AppShellRoute as Route } from "./app-shell-types.ts"
 import type { PanelSelection } from "./artifacts-panel-selection.ts"
+import type { FilePreviewSelection } from "@/routes/Chat/FilePreviewPanel"
 import type { ArtifactSelection } from "@/routes/Chat/GeneratedArtifacts"
 import type { TurnOutputSelection } from "@/routes/Chat/TurnOutputs"
 
@@ -18,6 +19,7 @@ import {
 import {
   artifactPanelSelection,
   EMPTY_PANEL_SELECTION,
+  filePreviewPanelSelection,
   nextArtifactPanelSelection,
   nextTurnOutputPanelSelection,
   releaseManualPanelSelection,
@@ -43,11 +45,13 @@ interface UseArtifactsPanelStateResult {
   artifactsPanelOpen: boolean
   artifactsPanelShellRef: React.RefObject<HTMLDivElement | null>
   artifactsPanelVisible: boolean
+  filePreviewSelection: FilePreviewSelection | null
   handleArtifactsAvailable: (selection: ArtifactSelection) => void
   handleArtifactsOpen: (selection: ArtifactSelection) => void
   handleArtifactsPanelResizeKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => void
   handleArtifactsPanelResizeStart: (event: React.PointerEvent<HTMLDivElement>) => void
   handleArtifactsReset: () => void
+  handleFilePreviewOpen: (path: string, line?: number | null) => void
   handleTurnOutputAvailable: (selection: TurnOutputSelection) => void
   handleTurnOutputOpen: (selection: TurnOutputSelection) => void
   hasPanelSelection: boolean
@@ -97,6 +101,7 @@ export function useArtifactsPanelState({
   const artifactsPanelShellRef = React.useRef<HTMLDivElement | null>(null)
   const artifactsPanelMaxWidthValue = artifactsPanelMaxWidthState ?? Number.POSITIVE_INFINITY
   const artifactSelection = panelSelection.kind === "artifact" ? panelSelection.selection : null
+  const filePreviewSelection = panelSelection.kind === "filePreview" ? panelSelection.selection : null
   const turnOutputSelection = panelSelection.kind === "turnOutput" ? panelSelection.selection : null
   const hasPanelSelection = panelSelection.kind !== "empty"
   const artifactsPanelVisible = route === "chat" && artifactsPanelOpen && hasPanelSelection && !browserPanelVisible
@@ -403,6 +408,11 @@ export function useArtifactsPanelState({
     setArtifactsPanelOpen(true)
   }, [])
 
+  const handleFilePreviewOpen = React.useCallback((path: string, line?: number | null) => {
+    setPanelSelection(filePreviewPanelSelection({ line: line ?? null, path }, "manual"))
+    setArtifactsPanelOpen(true)
+  }, [])
+
   const handleTurnOutputAvailable = React.useCallback(
     (selection: TurnOutputSelection) => {
       setLatestAutoPanelSelection((current) => nextTurnOutputPanelSelection(current, selection, false))
@@ -424,11 +434,13 @@ export function useArtifactsPanelState({
     artifactsPanelOpen,
     artifactsPanelShellRef,
     artifactsPanelVisible,
+    filePreviewSelection,
     handleArtifactsAvailable,
     handleArtifactsOpen,
     handleArtifactsPanelResizeKeyDown,
     handleArtifactsPanelResizeStart,
     handleArtifactsReset,
+    handleFilePreviewOpen,
     handleTurnOutputAvailable,
     handleTurnOutputOpen,
     hasPanelSelection,

@@ -10,7 +10,7 @@ import type {
 } from "streamdown"
 
 import { createMermaidPlugin } from "@streamdown/mermaid"
-import { CheckIcon, CopyIcon, ExternalLinkIcon } from "lucide-react"
+import { CheckIcon, CopyIcon, ExternalLinkIcon, PanelRightIcon } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import { Streamdown } from "streamdown"
@@ -22,13 +22,14 @@ import {
   validateMermaidSource,
 } from "./mermaid-policy.ts"
 import { MermaidPendingRenderer, MermaidRenderer, MermaidRendererProvider } from "./mermaid-renderer.tsx"
+import { useOpenFilePreview } from "@/components/app-shell/file-preview-context"
 import { useChatService } from "@/components/AppContext"
 import { useTheme } from "@/components/theme-context"
 import { Button } from "@/components/ui/button"
 import { Dialog } from "@/components/ui/dialog"
 import { useT } from "@/i18n/i18n"
 import { writeClipboardText } from "@/lib/clipboard"
-import { localFilePathFromMessageLink } from "@/lib/message-link-target"
+import { localFileTargetFromMessageLink } from "@/lib/message-link-target"
 import { reportRendererHandledError } from "@/lib/renderer-diagnostics"
 import { resolveUserFacingError, userFacingErrorDescription } from "@/lib/user-facing-error"
 
@@ -195,7 +196,9 @@ function useStreamdownTranslations(): Partial<StreamdownTranslations> {
 function MessageLinkSafetyModal({ isOpen, onClose, onConfirm, url }: LinkSafetyModalProps) {
   const t = useT()
   const chatService = useChatService()
-  const localPath = localFilePathFromMessageLink(url)
+  const openFilePreview = useOpenFilePreview()
+  const localTarget = localFileTargetFromMessageLink(url)
+  const localPath = localTarget?.path ?? null
   const [copied, setCopied] = useState(false)
   const [isOpeningLocalPath, setIsOpeningLocalPath] = useState(false)
   const copiedResetTimerRef = useRef<number | null>(null)
@@ -255,6 +258,15 @@ function MessageLinkSafetyModal({ isOpen, onClose, onConfirm, url }: LinkSafetyM
     }
   }
 
+  const canPreviewInPanel = Boolean(localPath) && openFilePreview !== null
+  const previewInPanel = (): void => {
+    if (!localTarget || !openFilePreview) {
+      return
+    }
+    openFilePreview(localTarget.path, localTarget.line)
+    onClose()
+  }
+
   return (
     <Dialog
       open={isOpen}
@@ -276,6 +288,7 @@ function MessageLinkSafetyModal({ isOpen, onClose, onConfirm, url }: LinkSafetyM
           </Button>
           <Button
             type="button"
+            variant={canPreviewInPanel ? "outline" : "default"}
             className="flex-1"
             disabled={Boolean(localPath) && isOpeningLocalPath}
             onClick={() => void openLink()}
@@ -283,6 +296,12 @@ function MessageLinkSafetyModal({ isOpen, onClose, onConfirm, url }: LinkSafetyM
             <ExternalLinkIcon className="size-4" />
             {t(localPath ? "chat.openFile" : "chat.openLink")}
           </Button>
+          {canPreviewInPanel ? (
+            <Button type="button" className="flex-1" onClick={previewInPanel}>
+              <PanelRightIcon className="size-4" />
+              {t("chat.previewInPanel")}
+            </Button>
+          ) : null}
         </>
       }
     >

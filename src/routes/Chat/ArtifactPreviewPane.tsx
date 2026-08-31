@@ -96,6 +96,7 @@ export function ArtifactPreview({
   onModeChange,
   pack,
   previewCache,
+  scrollToLine,
   showHeader = true,
   onOpen,
 }: {
@@ -106,6 +107,7 @@ export function ArtifactPreview({
   onModeChange?: (mode: ArtifactPreviewMode) => void
   pack?: LocalArtifactPack | null
   previewCache: LocalArtifactPreviewCache
+  scrollToLine?: number | null
   showHeader?: boolean
   onOpen: () => void
 }) {
@@ -220,12 +222,13 @@ export function ArtifactPreview({
             {t("artifacts.previewLoading")}
           </div>
         ) : activeMode === "source" && canShowSource ? (
-          <ArtifactSourcePreview item={item} preview={preview} />
+          <ArtifactSourcePreview item={item} preview={preview} scrollToLine={scrollToLine} />
         ) : (
           <ArtifactConsumablePreview
             item={item}
             pack={pack}
             preview={preview}
+            scrollToLine={scrollToLine}
             onOpen={onOpen}
             onResourceError={reload}
           />
@@ -277,15 +280,42 @@ function CopyContentButton({ text }: { text: string }) {
 function ArtifactSourcePreview({
   item,
   preview,
+  scrollToLine,
 }: {
   item: LocalArtifactItem
   preview: LocalArtifactPreviewResult | null
+  scrollToLine?: number | null
 }) {
   const t = useT()
+  const rootRef = React.useRef<HTMLDivElement | null>(null)
+
+  React.useEffect(() => {
+    if (!scrollToLine) {
+      return
+    }
+    const scrollToAnchor = (): void => {
+      const anchor = rootRef.current?.querySelector("[data-line-anchor]")
+      if (anchor instanceof HTMLElement) {
+        anchor.scrollIntoView({ block: "center" })
+      }
+    }
+    const frame = window.requestAnimationFrame(scrollToAnchor)
+    // shiki 异步高亮会重建行 DOM，延迟重试一次保证滚动落位
+    const retryTimer = window.setTimeout(scrollToAnchor, 250)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.clearTimeout(retryTimer)
+    }
+  }, [item.path, scrollToLine, preview?.text])
 
   return (
-    <div className="oo-artifact-code-preview min-h-full p-3">
-      <CodeBlock code={preview?.text ?? ""} language={previewLanguage(item)} showLineNumbers>
+    <div ref={rootRef} className="oo-artifact-code-preview min-h-full p-3">
+      <CodeBlock
+        code={preview?.text ?? ""}
+        highlightLine={scrollToLine ?? null}
+        language={previewLanguage(item)}
+        showLineNumbers
+      >
         <CodeBlockHeader>
           <CodeBlockTitle>
             <CodeBlockFilename>{item.name}</CodeBlockFilename>
@@ -494,12 +524,14 @@ export function ArtifactConsumablePreview({
   preview,
   onOpen,
   pack,
+  scrollToLine,
   onResourceError,
 }: {
   item: LocalArtifactItem
   preview: LocalArtifactPreviewResult | null
   onOpen: () => void
   pack?: LocalArtifactPack | null
+  scrollToLine?: number | null
   onResourceError?: () => void
 }) {
   const t = useT()
@@ -624,7 +656,7 @@ export function ArtifactConsumablePreview({
   }
 
   if (preview?.kind === "text") {
-    return <ArtifactSourcePreview item={item} preview={preview} />
+    return <ArtifactSourcePreview item={item} preview={preview} scrollToLine={scrollToLine} />
   }
 
   return <ArtifactUnavailablePreview item={item} pack={pack} preview={preview} onOpen={onOpen} />

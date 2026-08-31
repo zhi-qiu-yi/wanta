@@ -1,6 +1,7 @@
 @layer components {
   .oo-markdown,
   .oo-message-response {
+    font-family: var(--font-content);
     font-size: var(--oo-font-markdown);
     font-weight: 400;
     line-height: var(--oo-line-markdown);
@@ -42,6 +43,8 @@
   .oo-message-response h4,
   .oo-message-response h5,
   .oo-message-response h6 {
+    color: var(--oo-markdown-heading-foreground);
+    font-family: var(--font-heading);
     margin: 1rem 0 0.5rem;
     font-weight: 600;
     line-height: 1.3;
