@@ -15,12 +15,13 @@ if (isMainModule()) {
 }
 
 export async function runDev(args: string[]): Promise<void> {
+  const userDataDir = process.env["WANTA_USER_DATA_DIR"]?.trim() || repoUserDataDir
   await new Promise<void>((resolve, reject) => {
     const child = spawn(commandName("vite"), args, {
       cwd: repoRoot,
       env: {
         ...process.env,
-        WANTA_USER_DATA_DIR: repoUserDataDir,
+        WANTA_USER_DATA_DIR: userDataDir,
       },
       stdio: "inherit",
     })

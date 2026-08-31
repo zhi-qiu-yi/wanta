@@ -354,7 +354,7 @@ export function AssistantBlock({
           onViewBilling={onViewBilling}
         />
       ) : block.kind === "status" ? (
-        <div className="text-sm leading-6 font-medium text-muted-foreground/80">{statusPartText(t, block.part)}</div>
+        <div className="text-sm leading-6 font-normal text-muted-foreground/80">{statusPartText(t, block.part)}</div>
       ) : block.kind === "attachment" ? (
         block.part.attachment ? (
           <AssistantAttachment attachment={block.part.attachment} />

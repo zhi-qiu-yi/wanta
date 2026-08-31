@@ -27,7 +27,7 @@
     "oo:upgrade": "node --experimental-strip-types ./scripts/oo-upgrade.ts",
     "postinstall": "node --experimental-strip-types ./scripts/download-electron.ts && node --experimental-strip-types ./scripts/download-oo.ts && node --experimental-strip-types ./scripts/download-skills.ts && node --experimental-strip-types ./scripts/download-ripgrep.ts && node --experimental-strip-types ./scripts/download-lark-cli.ts && node --experimental-strip-types ./scripts/download-wecom-cli.ts && node --experimental-strip-types ./scripts/download-dingtalk-cli.ts && node --experimental-strip-types ./scripts/build-agent-tool-runtime.ts",
     "predev": "node --experimental-strip-types ./scripts/check-oo.ts",
-    "dev": "node --experimental-strip-types ./scripts/dev.ts",
+    "dev": "WANTA_USER_DATA_DIR=\"$HOME/Library/Application Support/wanta\" node --experimental-strip-types ./scripts/dev.ts",
     "dev:worktree": "node --experimental-strip-types ./scripts/dev-worktree.ts",
     "dev:no-electron": "vite --mode no-electron",
     "build": "pnpm run build:app",

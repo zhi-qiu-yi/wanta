@@ -122,7 +122,7 @@
 
   .oo-sidebar-nav-item {
     color: var(--sidebar-foreground);
-    font-weight: 500;
+    font-weight: 400;
     outline: none;
     overflow: hidden;
     transition:
