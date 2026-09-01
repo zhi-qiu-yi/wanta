@@ -4,8 +4,9 @@
 
 ## What this layer is
 
-Wanta supports bringing your own coding agent (BYOA). Every agent — the built-in
-OpenCode kernel, Claude Code, ACP agents — sits behind one interface,
+Wanta supports bringing your own coding agent (BYOA). The built-in OpenCode
+kernel and native Codex app-server sit behind the same interface as external
+protocol agents such as Claude Code and Grok:
 `AgentAdapter`, defined in `electron/agent/contract/adapter.ts`:
 
 - `send(AgentInput)` — the single inbound channel
@@ -16,9 +17,10 @@ OpenCode kernel, Claude Code, ACP agents — sits behind one interface,
 `ChatAgentBackend` in `contract/chat-backend.ts` is the composed host-facing
 surface used by the chat service after session routing. It adds history and
 pending-interaction reads without putting OpenCode-only deep features into the
-protocol adapter contract. Shipping external agents, including Claude Code,
-are registry-backed ACP agents built on `ExternalAgentAdapter`; Claude uses the
-pinned `@agentclientprotocol/claude-agent-acp` bridge over the official Claude Agent SDK.
+protocol adapter contract. Shipping external agents build on
+`ExternalAgentAdapter`. Claude Code and Grok use ACP.
+Codex uses the official native `codex app-server` JSONL protocol. Claude uses the pinned
+`@agentclientprotocol/claude-agent-acp` bridge over the official Claude Agent SDK.
 
 There are deliberately **no per-feature methods** (`prompt()`, `setModel()`, ...).
 A new kind of interaction is a new variant on `AgentInput` or `AgentEvent`.
@@ -149,10 +151,12 @@ External agents build on `electron/agent/external/`:
   catalog, account, provider configuration, and selection protocol. External
   selection is carried by `set-model` / `set-effort` input variants plus
   `agentModelId`/`agentEffortId` on the session-creating prompt. The ACP
-  adapter prefers v1.3 session config options (`session/set_config_option`,
-  categories `model` / `thought_level`) and falls back to the unstable `models`
-  state + `session/set_model` that shipping agents (codex-acp 1.6.2, grok 1.0.5)
-  actually implement. Available options surface on
+  Claude Code and Grok use ACP: the adapter prefers v1.3 session config options
+  (`session/set_config_option`, categories `model` / `thought_level`) and falls
+  back to the unstable `models` state + `session/set_model` that shipping Grok
+  versions implement. Codex uses the official native `codex app-server` JSONL
+  API, querying `model/list` and sending native `model` / `effort` fields on
+  `turn/start`. Available options surface on
   `ExternalAgentRuntimeStatus.catalog` and the UI renders them verbatim; a
   `warmCatalog()` pass (a throwaway ACP session closed right away) fills the catalog before the first user session so draft-time
   pickers show the real lists. Per-session choices are also stored in Wanta's
@@ -173,12 +177,15 @@ External agents build on `electron/agent/external/`:
   unsupported candidates are never shown or applied. Native
   `current_mode_update` notifications are normalized back into Wanta session
   state. Agent-native work modes may map prompt `build`/`plan` onto a declared
-  config category (Codex uses `collaboration_mode`). Model metadata reported at
+  config category when the protocol supports it. The current Codex app-server
+  protocol does not advertise collaboration modes, so Codex leaves the Wanta
+  build/plan picker disabled. Model metadata reported at
   ACP initialize, including Grok's `totalContextTokens`, seeds the external
   catalog so the context meter can render before the first turn. Live
   `usage_update.size` remains authoritative once a turn runs.
-- **Attachments**: delivered as ACP `resource_link` blocks that the agent
-  resolves with its own tools and permission model — never inlined into the payload.
+- **Attachments**: ACP agents receive `resource_link` blocks that the agent
+  resolves with its own tools and permission model; Codex receives native
+  `localImage` input items. Files are never inlined into the prompt payload.
   Display rides the kernel's `userAttachmentStore` record keyed by the
   synthesized user message id.
 - **Host turn context**: Wanta passes the active Link workspace, team skills,
@@ -196,8 +203,11 @@ External agents build on `electron/agent/external/`:
   normalized bundle, so adapters never need an artifact-specific method or UI
   branch.
 - **Usage reporting**: adapters emit `usageUpdated` (normalized
-  `ChatTokenUsage` + optional `contextWindow`) from ACP `usage_update`. The recorder attaches it to the
-  latest assistant message, which is what lights the composer context meter.
+  `ChatTokenUsage` + optional `contextWindow`) from their native usage events.
+  ACP uses `usage_update`.
+  Codex uses `thread/tokenUsage/updated`. The recorder
+  attaches it to the latest assistant message, which is what lights the
+  composer context meter.
 - **Probing** (`external/probe.ts`): PATH scan (reusing
   `electron/agents/catalog.ts` + `resolveUserCommandPath`) with `--version`, plus
   validation of any native CLI delegated to by a packaged ACP bridge

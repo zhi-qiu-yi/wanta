@@ -13,7 +13,6 @@ import { fileURLToPath } from "node:url"
 import { EXTERNAL_OO_CONTRACT_VERSION } from "../electron/agent/external/oo-capability-contract.ts"
 import { buildAgentToolRuntime } from "./build-agent-tool-runtime.ts"
 import { bundleClaudeAgentAcp } from "./claude-agent-acp.ts"
-import { bundleCodexAcp } from "./codex-acp.ts"
 import { dingTalkCliBinaryName, downloadDingTalkCliBinary, exportDingTalkCliSkills } from "./dingtalk-cli.ts"
 import { downloadLarkCliBinary, exportLarkCliSkills, larkCliBinaryName } from "./lark-cli.ts"
 import { downloadOoBinary, ooExecutableName, OO_CLI_VERSION } from "./oo-cli.ts"
@@ -42,11 +41,6 @@ bundle(
   path.join(repoRoot, "node_modules", "opencode-ai", "bin", "opencode.exe"),
   `opencode${exe}`,
 )
-
-// Codex 通过 ACP bridge 接入。开发态从 node_modules/.bin 解析；打包态必须把同版本的
-// 自包含 JS bundle 和启动 shim 放进 Resources/bin，不能依赖构建机的 pnpm shim。
-const bundledCodexAcp = bundleCodexAcp(binDir, platform)
-console.log(`[wanta] bundled codex-acp: ${path.basename(bundledCodexAcp.entryPath)}@${bundledCodexAcp.version}`)
 
 const bundledClaudeAgentAcp = await bundleClaudeAgentAcp(binDir, platform)
 console.log(

@@ -43,11 +43,10 @@ describe("composerCapabilitiesForProfile", () => {
 
   it("uses each external profile's declared model owner", () => {
     // Attachments are delivered as file references the agent resolves itself,
-    // so every external agent supports them; model routing and Wanta modes
-    // stay agent-owned.
+    // so every external agent supports them; model routing stays agent-owned.
     for (const kind of EXTERNAL_AGENT_KINDS) {
       expect(composerCapabilitiesForProfile(AGENT_PROFILES[kind])).toEqual({
-        agentModesEnabled: kind === "codex",
+        agentModesEnabled: AGENT_PROFILES[kind].inputs.modes,
         attachmentsEnabled: true,
         modelRoutingEnabled: false,
       })

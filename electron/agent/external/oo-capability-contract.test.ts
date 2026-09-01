@@ -51,7 +51,6 @@ describe("external OO capability contract", () => {
     )
     const byAgent = Object.fromEntries(ACP_AGENT_KINDS.map((kind) => [kind, enabled]))
     expect(byAgent["claude-code"]).toEqual(enabled)
-    expect(byAgent.codex).toEqual(enabled)
     expect(byAgent.grok).toEqual(enabled)
   })
 })

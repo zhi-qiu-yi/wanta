@@ -177,7 +177,7 @@ interface AdapterHarness {
 
 async function createHarness(behavior: FakeAgentBehavior = {}): Promise<AdapterHarness> {
   const fake = createFakeAgent(behavior)
-  const kind = "codex" as const
+  const kind = "claude-code" as const
   const registration = ACP_AGENT_REGISTRY[kind]
   const scratchRootDir = await mkdtemp(path.join(os.tmpdir(), "acp-adapter-edge-test-"))
   const probe = vi.fn(async (): Promise<ExternalAgentRuntimeStatus> => ({

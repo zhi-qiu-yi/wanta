@@ -13,6 +13,7 @@ Wanta is OOMOL's Electron desktop AI-agent chat client.
 - Treat worktree isolation and concurrent agents as first-class concerns.
 - Keep Electron dev observable by the machine, not by human narration.
 - Preserve credential, endpoint, branding, and runtime-boundary rules.
+- 代码注释要求：新增或修改的类、方法和关键分支使用简洁、准确的中文注释，说明职责、协议转换和重要决策；不要为显而易见的逐行赋值添加注释。
 
 ## When to read what
 

@@ -164,8 +164,8 @@ interface AcpConfigSelect {
   configId: string
   /**
    * Wire channel for applying a choice: v1.3 session/set_config_option, or the
-   * older unstable session/set_model (the shape codex-acp 1.1.14 and grok 1.0
-   * actually ship, carried as `models` on session/new).
+   * older unstable session/set_model shape carried as `models` on session/new.
+   * Shipping Grok versions still use the latter.
    */
   via: "config_option" | "set_model"
   options: ExternalAgentCatalogOption[]

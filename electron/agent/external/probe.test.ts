@@ -73,25 +73,27 @@ describe("shouldProbeExternalAgentLogin", () => {
 
 describe("probeRegisteredRuntime", () => {
   it("rejects an invalid explicit native runtime override", async () => {
-    const missing = path.join(os.tmpdir(), "wanta-missing-codex-runtime")
+    const missing = path.join(os.tmpdir(), "wanta-missing-claude-runtime")
     await expect(
-      probeRegisteredRuntime(ACP_AGENT_REGISTRY.codex, "", { env: { CODEX_PATH: missing } }),
+      probeRegisteredRuntime(ACP_AGENT_REGISTRY["claude-code"], "", {
+        env: { CLAUDE_CODE_EXECUTABLE: missing },
+      }),
     ).resolves.toEqual({
       status: "not_found",
-      message: expect.stringContaining("set CODEX_PATH to a valid executable path"),
+      message: expect.stringContaining("set CLAUDE_CODE_EXECUTABLE to a valid executable path"),
     })
   })
 
   it.runIf(process.platform !== "win32")("detects the native CLI required by a packaged bridge", async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), "wanta-probe-runtime-"))
     temporaryDirectories.push(directory)
-    const codexPath = path.join(directory, "codex")
-    await writeFile(codexPath, "#!/bin/sh\nexit 0\n", "utf8")
-    await chmod(codexPath, 0o755)
+    const claudePath = path.join(directory, "claude")
+    await writeFile(claudePath, "#!/bin/sh\nexit 0\n", "utf8")
+    await chmod(claudePath, 0o755)
 
-    await expect(probeRegisteredRuntime(ACP_AGENT_REGISTRY.codex, directory, { env: {} })).resolves.toEqual({
+    await expect(probeRegisteredRuntime(ACP_AGENT_REGISTRY["claude-code"], directory, { env: {} })).resolves.toEqual({
       status: "detected",
-      path: codexPath,
+      path: claudePath,
     })
   })
 

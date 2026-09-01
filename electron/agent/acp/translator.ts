@@ -113,10 +113,9 @@ function asRecord(value: unknown): Record<string, unknown> {
 }
 
 /**
- * ACP bridges expose MCP calls in two shapes. codex-acp uses the generic
- * `{server, tool, arguments}` envelope, while claude-agent-acp names the native
- * tool `mcp__<server>__<tool>` and sends its arguments directly. Normalize the
- * latter so both agents reach the same host-tool UI vocabulary.
+ * ACP implementations may expose MCP calls using a generic
+ * `{server, tool, arguments}` envelope or a native `mcp__<server>__<tool>`
+ * name with direct arguments. Normalize both into the host-tool UI vocabulary.
  */
 function nativeWantaMcpToolName(
   value: string | undefined,
@@ -429,18 +428,6 @@ export function createAcpSessionTranslator(
                     ),
                   ]
                 : [activity]
-            }
-            const warning = "Warning: Skill descriptions were shortened to fit the skills context budget."
-            if (update.content.text.startsWith(warning)) {
-              const newline = update.content.text.indexOf("\n")
-              const remainder = newline >= 0 ? update.content.text.slice(newline + 1).replace(/^\s+/u, "") : ""
-              if (remainder) {
-                return translateChunk({ ...update, content: { ...update.content, text: remainder } }, "text")
-              }
-              // codex-acp projects Codex runtime notices onto the assistant text
-              // channel. This is neither the model's answer nor actionable in a
-              // Wanta task, so do not persist or render it as chat content.
-              return []
             }
           }
           return translateChunk(update, "text")

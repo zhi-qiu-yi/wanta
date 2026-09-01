@@ -43,8 +43,7 @@ export interface AcpAgentRegistration {
   catalogProbe?: "grok-models"
   /**
    * Managed binary name resolved from node_modules/.bin in dev (and bundled
-   * resources in packaged builds) when the CLI is not on the user PATH. Used
-   * for npm-distributed ACP bridges such as codex-acp.
+   * resources in packaged builds) when the CLI is not on the user PATH.
    */
   bundledBinName?: string
   /**
@@ -84,27 +83,6 @@ export const ACP_AGENT_REGISTRY = {
     bundledBinName: "claude-agent-acp",
     runtimeExecutable: { cliCommands: ["claude"], envVar: "CLAUDE_CODE_EXECUTABLE" },
   },
-  codex: {
-    displayName: "Codex",
-    cliCommands: ["codex-acp"],
-    acpArgs: [],
-    versionArgs: ["--version"],
-    loginHint: "Run `codex login` in a terminal to sign in, then retry.",
-    loginCommand: "codex login",
-    // codex-acp modes: read-only / agent (workspace-write) / agent-full-access.
-    permissionModeMap: { default: "agent", read_only: "read-only", full_access: "agent-full-access" },
-    // codex-acp 1.6.2: session/new carries the model config option, followed by
-    // config_option_update replaces it with family-level models (category
-    // "model") plus a thought_level effort select — both axes are live.
-    selection: { model: true, effort: true },
-    workModeMap: {
-      build: { category: "collaboration_mode", value: "default" },
-      plan: { category: "collaboration_mode", value: "plan" },
-    },
-    loginMarkerPath: ".codex/auth.json",
-    bundledBinName: "codex-acp",
-    runtimeExecutable: { cliCommands: ["codex"], envVar: "CODEX_PATH" },
-  },
   grok: {
     displayName: "Grok",
     cliCommands: ["grok"],
@@ -135,6 +113,5 @@ export const ACP_AGENT_REGISTRY = {
   },
 } as const satisfies Record<string, AcpAgentRegistration>
 
-export type AcpAgentKind = keyof typeof ACP_AGENT_REGISTRY
-
-export const ACP_AGENT_KINDS = Object.keys(ACP_AGENT_REGISTRY) as AcpAgentKind[]
+export const ACP_AGENT_KINDS = ["claude-code", "grok"] as const
+export type AcpAgentKind = (typeof ACP_AGENT_KINDS)[number]

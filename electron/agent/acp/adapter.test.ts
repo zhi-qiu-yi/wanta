@@ -34,7 +34,7 @@ import { ACP_AGENT_KINDS, ACP_AGENT_REGISTRY } from "./registry.ts"
 // real wire protocol (ndjson-equivalent AnyMessage streams), so schema
 // validation on both sides is exercised.
 
-const REGISTRATION = ACP_AGENT_REGISTRY["codex"]
+const REGISTRATION = ACP_AGENT_REGISTRY["claude-code"]
 const WANTA_SESSION_ID = "wanta-session-1"
 const execFileAsync = promisify(execFile)
 
@@ -221,7 +221,7 @@ interface AdapterHarness {
 
 async function createHarness(
   behavior: FakeAgentBehavior = {},
-  kind: keyof typeof ACP_AGENT_REGISTRY = "codex",
+  kind: keyof typeof ACP_AGENT_REGISTRY = "claude-code",
   hostMcpServers?: AcpAdapterOptions["hostMcpServers"],
   transcriptDir?: string,
 ): Promise<AdapterHarness> {
@@ -299,8 +299,8 @@ const permissionOptions: PermissionOption[] = [
 describe("AcpAgentAdapter", () => {
   test("declares its registry-derived identity and capability surface", async () => {
     const harness = await createHarness()
-    expect(harness.adapter.kind).toBe("codex")
-    expect(harness.adapter.profile).toBe(AGENT_PROFILES["codex"])
+    expect(harness.adapter.kind).toBe("claude-code")
+    expect(harness.adapter.profile).toBe(AGENT_PROFILES["claude-code"])
     expect(harness.adapter.supportsInput("prompt")).toBe(true)
     expect(harness.adapter.supportsInput("cancel")).toBe(true)
     expect(harness.adapter.supportsInput("permission-response")).toBe(true)
@@ -653,7 +653,7 @@ describe("AcpAgentAdapter", () => {
   })
 
   test("registers Wanta host MCP servers on the external ACP session", async () => {
-    const harness = await createHarness({}, "codex", async () => [
+    const harness = await createHarness({}, "claude-code", async () => [
       {
         name: "wanta_link",
         url: "http://127.0.0.1:4321/mcp",
@@ -842,7 +842,7 @@ describe("AcpAgentAdapter", () => {
       }),
       "utf8",
     )
-    const harness = await createHarness({}, "codex", undefined, transcriptDir)
+    const harness = await createHarness({}, "claude-code", undefined, transcriptDir)
 
     await harness.adapter.send({ type: "prompt", sessionId: WANTA_SESSION_ID, text: "continue" })
 
@@ -897,7 +897,7 @@ describe("AcpAgentAdapter", () => {
     expect(harness.fake.permissionResponses).toEqual([{ outcome: { outcome: "selected", optionId: expectedOptionId } }])
   })
 
-  test("correlates a generic codex permission request with its live Wanta MCP tool call", async () => {
+  test("correlates a generic ACP permission request with its live Wanta MCP tool call", async () => {
     const harness = await createHarness(
       {
         prompt: async (turn) => {
@@ -922,7 +922,7 @@ describe("AcpAgentAdapter", () => {
           return { stopReason: "end_turn" }
         },
       },
-      "codex",
+      "claude-code",
       async () => [{ headers: {}, name: "wanta_link", url: "http://127.0.0.1/mcp" }],
     )
     await harness.adapter.send(promptInput())
@@ -997,26 +997,23 @@ describe("AcpAgentAdapter", () => {
     expect(harness.fake.newSessionRequests).toHaveLength(0)
   })
 
-  test.each(["codex", "grok"] as const)(
-    "%s initialize failure includes the captured subprocess detail",
-    async (kind) => {
-      const registration = ACP_AGENT_REGISTRY[kind]
-      const harness = await createHarness(
-        {
-          initializeError: new Error("ACP connection closed"),
-          failureDetail: "Error: native ACP process failed during startup",
-        },
-        kind,
-      )
+  test.each(ACP_AGENT_KINDS)("%s initialize failure includes the captured subprocess detail", async (kind) => {
+    const registration = ACP_AGENT_REGISTRY[kind]
+    const harness = await createHarness(
+      {
+        initializeError: new Error("ACP connection closed"),
+        failureDetail: "Error: native ACP process failed during startup",
+      },
+      kind,
+    )
 
-      await expect(harness.adapter.send(promptInput())).rejects.toThrow(
-        "ACP subprocess: Error: native ACP process failed during startup",
-      )
-      const error = await harness.waitFor((event) => event.event === "agentError")
-      expect(eventData(error, "agentError").message).toContain(registration.displayName)
-      expect(eventData(error, "agentError").message).toContain("native ACP process failed during startup")
-    },
-  )
+    await expect(harness.adapter.send(promptInput())).rejects.toThrow(
+      "ACP subprocess: Error: native ACP process failed during startup",
+    )
+    const error = await harness.waitFor((event) => event.event === "agentError")
+    expect(eventData(error, "agentError").message).toContain(registration.displayName)
+    expect(eventData(error, "agentError").message).toContain("native ACP process failed during startup")
+  })
 
   test("an unknown permission requestId is rejected loudly", async () => {
     const harness = await createHarness()
@@ -1027,7 +1024,7 @@ describe("AcpAgentAdapter", () => {
         requestId: "acp-perm-unknown",
         reply: "once",
       }),
-    ).rejects.toThrow("codex: unknown permission request acp-perm-unknown")
+    ).rejects.toThrow("claude-code: unknown permission request acp-perm-unknown")
   })
 
   test("subprocess exit fails the in-flight turn and the next prompt respawns", async () => {
@@ -1068,8 +1065,8 @@ describe("AcpAgentAdapter", () => {
         modes: {
           currentModeId: "default",
           availableModes: [
-            { id: "agent", name: "Agent" },
-            { id: "agent-full-access", name: "Full access" },
+            { id: "default", name: "Default" },
+            { id: "bypassPermissions", name: "Full access" },
           ],
         },
       }),
@@ -1078,7 +1075,7 @@ describe("AcpAgentAdapter", () => {
     await harness.waitFor((event) => event.event === "messageCompleted")
     await harness.adapter.applyPermissionMode(WANTA_SESSION_ID, "full_access")
     await harness.adapter.applyPermissionMode(WANTA_SESSION_ID, "default")
-    expect(harness.fake.setModeRequests.map((request) => request.modeId)).toEqual(["agent-full-access", "agent"])
+    expect(harness.fake.setModeRequests.map((request) => request.modeId)).toEqual(["bypassPermissions", "default"])
     expect(harness.fake.setModeRequests.every((request) => request.sessionId === "acp-session-1")).toBe(true)
   })
 
@@ -1112,7 +1109,7 @@ describe("AcpAgentAdapter", () => {
           currentModeId: "custom-default",
           availableModes: [
             { id: "custom-default", name: "Custom default" },
-            { id: "agent-full-access", name: "Full access" },
+            { id: "bypassPermissions", name: "Full access" },
           ],
         },
       }),
@@ -1122,11 +1119,11 @@ describe("AcpAgentAdapter", () => {
     await harness.adapter.applyPermissionMode(WANTA_SESSION_ID, "full_access")
     await harness.adapter.applyPermissionMode(WANTA_SESSION_ID, "default")
     expect(harness.fake.setModeRequests.map((request) => request.modeId)).toEqual([
-      "agent-full-access",
+      "bypassPermissions",
       "custom-default",
     ])
-    await expect(harness.adapter.applyPermissionMode(WANTA_SESSION_ID, "read_only")).rejects.toThrow(
-      /permission mode "read_only" is not available/u,
+    await expect(harness.adapter.applyPermissionMode(WANTA_SESSION_ID, "accept_edits")).rejects.toThrow(
+      /permission mode "accept_edits" is not available/u,
     )
   })
 
@@ -1149,10 +1146,10 @@ describe("AcpAgentAdapter", () => {
         name: "Model",
         type: "select",
         category: "model",
-        currentValue: "gpt-5.2-codex",
+        currentValue: "native-model-a",
         options: [
-          { value: "gpt-5.2-codex", name: "GPT-5.2 Codex" },
-          { value: "gpt-5.2", name: "GPT-5.2" },
+          { value: "native-model-a", name: "Native model A" },
+          { value: "native-model-b", name: "Native model B" },
         ],
       },
       {
@@ -1170,17 +1167,17 @@ describe("AcpAgentAdapter", () => {
     ]
     const harness = await createHarness(
       { newSession: () => ({ sessionId: "acp-session-1", configOptions }) as never },
-      "codex",
+      "claude-code",
     )
     await harness.adapter.send(promptInput())
     const status = await harness.adapter.runtimeStatus()
-    expect(status.catalog?.models.map((model) => model.id)).toEqual(["gpt-5.2-codex", "gpt-5.2"])
-    expect(status.catalog?.defaultModelId).toBe("gpt-5.2-codex")
+    expect(status.catalog?.models.map((model) => model.id)).toEqual(["native-model-a", "native-model-b"])
+    expect(status.catalog?.defaultModelId).toBe("native-model-a")
     expect(status.catalog?.efforts.map((effort) => effort.id)).toEqual(["low", "medium", "high"])
 
-    await harness.adapter.send({ type: "set-model", sessionId: WANTA_SESSION_ID, modelId: "gpt-5.2" })
+    await harness.adapter.send({ type: "set-model", sessionId: WANTA_SESSION_ID, modelId: "native-model-b" })
     expect(harness.fake.setConfigOptionRequests).toEqual([
-      expect.objectContaining({ configId: "model", value: "gpt-5.2" }),
+      expect.objectContaining({ configId: "model", value: "native-model-b" }),
     ])
     await harness.adapter.send({ type: "set-effort", sessionId: WANTA_SESSION_ID, effortId: "high" })
     expect(harness.fake.setConfigOptionRequests.at(-1)).toEqual(
@@ -1195,22 +1192,22 @@ describe("AcpAgentAdapter", () => {
         name: "Model",
         type: "select",
         category: "model",
-        currentValue: "gpt-5.2-codex",
+        currentValue: "native-model-a",
         options: [
-          { value: "gpt-5.2-codex", name: "GPT-5.2 Codex" },
-          { value: "gpt-5.2", name: "GPT-5.2" },
+          { value: "native-model-a", name: "Native model A" },
+          { value: "native-model-b", name: "Native model B" },
         ],
       },
     ]
     const harness = await createHarness(
       { newSession: () => ({ sessionId: "acp-session-1", configOptions }) as never },
-      "codex",
+      "claude-code",
     )
-    await harness.adapter.send({ type: "set-model", sessionId: WANTA_SESSION_ID, modelId: "gpt-5.2" })
+    await harness.adapter.send({ type: "set-model", sessionId: WANTA_SESSION_ID, modelId: "native-model-b" })
     expect(harness.fake.setConfigOptionRequests).toHaveLength(0)
     await harness.adapter.send(promptInput())
     expect(harness.fake.setConfigOptionRequests).toEqual([
-      expect.objectContaining({ configId: "model", value: "gpt-5.2" }),
+      expect.objectContaining({ configId: "model", value: "native-model-b" }),
     ])
   })
 
@@ -1329,13 +1326,13 @@ describe("AcpAgentAdapter", () => {
           modes:
             sessionIndex === 1
               ? {
-                  currentModeId: "agent",
+                  currentModeId: "default",
                   availableModes: [
-                    { id: "agent", name: "Agent" },
-                    { id: "agent-full-access", name: "Full access" },
+                    { id: "default", name: "Default" },
+                    { id: "bypassPermissions", name: "Full access" },
                   ],
                 }
-              : { currentModeId: "agent", availableModes: [{ id: "agent", name: "Agent" }] },
+              : { currentModeId: "default", availableModes: [{ id: "default", name: "Default" }] },
         }
       },
     })
@@ -1356,19 +1353,19 @@ describe("AcpAgentAdapter", () => {
       newSession: () => ({
         sessionId: "acp-session-1",
         modes: {
-          currentModeId: "agent",
+          currentModeId: "default",
           availableModes: [
-            { id: "read-only", name: "Read only" },
-            { id: "agent", name: "Agent" },
-            { id: "agent-full-access", name: "Full access" },
+            { id: "default", name: "Default" },
+            { id: "acceptEdits", name: "Accept edits" },
+            { id: "bypassPermissions", name: "Full access" },
           ],
         },
       }),
     })
     await harness.adapter.send(promptInput())
-    await harness.adapter.applyPermissionMode(WANTA_SESSION_ID, "read_only")
-    expect(harness.fake.setModeRequests.at(-1)).toEqual(expect.objectContaining({ modeId: "read-only" }))
+    await harness.adapter.applyPermissionMode(WANTA_SESSION_ID, "accept_edits")
+    expect(harness.fake.setModeRequests.at(-1)).toEqual(expect.objectContaining({ modeId: "acceptEdits" }))
     await harness.adapter.applyPermissionMode(WANTA_SESSION_ID, "default")
-    expect(harness.fake.setModeRequests.at(-1)).toEqual(expect.objectContaining({ modeId: "agent" }))
+    expect(harness.fake.setModeRequests.at(-1)).toEqual(expect.objectContaining({ modeId: "default" }))
   })
 })

@@ -264,6 +264,12 @@ async function probeRegisteredLogin(
   return probeLoginMarker(registration.loginMarkerPath, options)
 }
 
+/** 原生 app-server Agent 不经过注册表协议桥。 */
+function registeredProtocolAgent(kind: ExternalAgentKind): AcpAgentRegistration | undefined {
+  if (kind === "codex") return undefined
+  return ACP_AGENT_REGISTRY[kind]
+}
+
 export async function probeExternalAgent(
   kind: ExternalAgentKind,
   options: ExternalAgentProbeOptions = {},
@@ -271,20 +277,32 @@ export async function probeExternalAgent(
   const profile = AGENT_PROFILES[kind]
   const loginHint = agentLoginHint(kind)
   const pathEnv = await probeCommandPath(options)
-  const registration: AcpAgentRegistration = ACP_AGENT_REGISTRY[kind]
-  let binary = await probeBinary(registration.cliCommands, registration.versionArgs, options, pathEnv)
+  const registration = registeredProtocolAgent(kind)
+  const binaryCommands = registration?.cliCommands ?? ["codex"]
+  const binary = await probeBinary(binaryCommands, registration?.versionArgs ?? ["--version"], options, pathEnv)
   if (binary.status === "detected") {
-    const runtime = await probeRegisteredRuntime(registration, pathEnv, options)
-    if (runtime.status === "not_found") {
-      binary = { status: "error", message: runtime.message }
+    if (registration) {
+      const runtime = await probeRegisteredRuntime(registration, pathEnv, options)
+      if (runtime.status === "not_found") {
+        return {
+          kind,
+          displayName: profile.displayName,
+          binary: { status: "error", message: runtime.message },
+          login: { status: "unknown" },
+          loginHint,
+          loginCommand: registration.loginCommand,
+        }
+      }
     }
   }
   const nativeCatalogProbe =
-    registration.catalogProbe === "grok-models" && binary.status === "detected"
+    registration?.catalogProbe === "grok-models" && binary.status === "detected"
       ? await probeGrokModels(binary.path, pathEnv, options)
       : undefined
   const login = shouldProbeExternalAgentLogin(profile.auth, binary)
-    ? (nativeCatalogProbe?.login ?? (await probeRegisteredLogin(registration, pathEnv, options)))
+    ? kind === "codex"
+      ? await probeLoginMarker(".codex/auth.json", options)
+      : (nativeCatalogProbe?.login ?? (await probeRegisteredLogin(registration!, pathEnv, options)))
     : { status: "unknown" as const }
   const catalog = nativeCatalogProbe?.catalog
   const status: ExternalAgentRuntimeStatus = {
@@ -293,7 +311,7 @@ export async function probeExternalAgent(
     binary,
     login,
     loginHint,
-    loginCommand: registration.loginCommand,
+    loginCommand: kind === "codex" ? "codex login" : registration?.loginCommand,
     ...(catalog ? { catalog } : {}),
   }
   logDiagnosticOnChange(`byoa-probe:${kind}`, "byoa-probe", "external agent probe", {

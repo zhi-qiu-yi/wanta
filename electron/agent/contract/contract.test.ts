@@ -1,5 +1,6 @@
 import type { AcpTransport } from "../acp/adapter.ts"
 import type { AcpAgentKind, AcpAgentRegistration } from "../acp/registry.ts"
+import type { CodexAppServerTransport } from "../codex/app-server.ts"
 import type { ExternalAgentRuntimeStatus } from "../external/probe.ts"
 import type { AgentManager } from "../manager.ts"
 import type { AgentEvent } from "./event.ts"
@@ -14,6 +15,7 @@ import path from "node:path"
 import { afterEach, describe, expect, test, vi } from "vitest"
 import { AcpAgentAdapter } from "../acp/adapter.ts"
 import { ACP_AGENT_KINDS, ACP_AGENT_REGISTRY } from "../acp/registry.ts"
+import { CodexAppServerAdapter } from "../codex/app-server.ts"
 import { mintExternalSessionId } from "../external/session-id.ts"
 import { OpencodeAgentAdapter } from "../opencode-adapter.ts"
 import { BaseAgentAdapter } from "./adapter.ts"
@@ -345,8 +347,141 @@ async function createAcpHarness(kind: AcpAgentKind): Promise<AdapterContractHarn
   }
 }
 
+/** 原生 Codex 合约夹具：模拟 app-server JSONL 传输。 */
+class ContractCodexTransport implements CodexAppServerTransport {
+  private listener?: (message: any) => void
+  private closeListener?: (error?: Error) => void
+  readonly sent: Array<Record<string, any>> = []
+
+  send(message: any): void {
+    this.sent.push(message)
+    if (message.method === "initialize") queueMicrotask(() => this.listener?.({ id: message.id, result: {} }))
+    if (message.method === "thread/start")
+      queueMicrotask(() => this.listener?.({ id: message.id, result: { thread: { id: "codex-thread-1" } } }))
+    if (message.method === "turn/start")
+      queueMicrotask(() => this.listener?.({ id: message.id, result: { turn: { id: "codex-turn-1" } } }))
+    if (message.method === "turn/interrupt") queueMicrotask(() => this.listener?.({ id: message.id, result: {} }))
+  }
+
+  close(): void {
+    this.closeListener?.()
+  }
+  onMessage(listener: (message: any) => void): () => void {
+    this.listener = listener
+    return () => {
+      this.listener = undefined
+    }
+  }
+  onClose(listener: (error?: Error) => void): () => void {
+    this.closeListener = listener
+    return () => {
+      this.closeListener = undefined
+    }
+  }
+  notify(method: string, params: unknown): void {
+    this.listener?.({ method, params })
+  }
+  request(id: number, method: string, params: unknown): void {
+    this.listener?.({ id, method, params })
+  }
+}
+
+async function createCodexHarness(): Promise<AdapterContractHarness> {
+  const scratchRootDir = await mkdtemp(path.join(os.tmpdir(), "wanta-contract-codex-"))
+  const transport = new ContractCodexTransport()
+  let promptCount = 0
+  let cancelCount = 0
+  let permissionSettled = 0
+  let attachmentObserved = false
+  let disposed = false
+  const adapter = new CodexAppServerAdapter({
+    probe: async () => ({
+      kind: "codex",
+      displayName: "Codex",
+      binary: { status: "detected", path: "/usr/bin/codex" },
+      login: { status: "logged_in" },
+      loginHint: "",
+    }),
+    scratchRootDir,
+    connect: async () => transport,
+  })
+  const sessionId = "codex-session-1"
+  const ensureTurn = async (): Promise<void> => {
+    if (promptCount === 0) await adapter.send({ type: "prompt", sessionId, text: "contract prompt" })
+  }
+  const harness: AdapterContractHarness = {
+    adapter,
+    sessionId,
+    emitAssistantText: async (text) => {
+      await ensureTurn()
+      transport.notify("turn/started", { threadId: "codex-thread-1", turn: { id: "codex-turn-1" } })
+      transport.notify("item/agentMessage/delta", {
+        threadId: "codex-thread-1",
+        turnId: "codex-turn-1",
+        itemId: "item-1",
+        delta: text,
+      })
+    },
+    emitPermissionAsked: async () => {
+      await ensureTurn()
+      transport.request(91, "item/commandExecution/requestApproval", {
+        threadId: "codex-thread-1",
+        turnId: "codex-turn-1",
+        command: "ls",
+        cwd: "/tmp",
+      })
+    },
+    settlePermission: async (requestId) => {
+      permissionSettled += 1
+      await adapter.send({ type: "permission-response", sessionId, requestId, reply: "once" })
+    },
+    emitToolCallStarted: async () => {
+      await ensureTurn()
+      transport.notify("item/started", {
+        threadId: "codex-thread-1",
+        turnId: "codex-turn-1",
+        item: { id: "tool-1", type: "commandExecution", command: "ls", cwd: "/tmp", status: "inProgress" },
+      })
+      return { partId: "tool-1", callId: "tool-1" }
+    },
+    effects: {
+      attachmentObserved: () => attachmentObserved,
+      modeObserved: () => false,
+      promptCount: () => promptCount,
+      cancelCount: () => cancelCount,
+      permissionSettledCount: () => permissionSettled,
+      stopped: () => disposed,
+    },
+    transcriptTexts: async () =>
+      (await adapter.getMessages(sessionId)).flatMap((message) =>
+        message.parts.filter((part) => part.kind === "text").map((part) => part.text ?? ""),
+      ),
+    cleanup: async () => {
+      disposed = true
+      await rm(scratchRootDir, { recursive: true, force: true }).catch(() => undefined)
+    },
+  }
+  const originalSend = transport.send.bind(transport)
+  transport.send = (message: any) => {
+    if (message.method === "turn/start") {
+      attachmentObserved ||= Boolean(
+        message.params?.input?.some((item: any) => item.type === "localImage" && item.path === "/tmp/input.txt"),
+      )
+      promptCount += 1
+    }
+    if (message.method === "turn/interrupt") cancelCount += 1
+    if (message.id === 91 && message.result) permissionSettled += 1
+    originalSend(message)
+  }
+  transport.close = () => {
+    disposed = true
+  }
+  return harness
+}
+
 const adapterFixtures: Array<{ kind: AgentKind; create: () => Promise<AdapterContractHarness> }> = [
   { kind: "opencode", create: createOpencodeHarness },
+  { kind: "codex", create: createCodexHarness },
   ...ACP_AGENT_KINDS.map((kind) => ({ kind, create: () => createAcpHarness(kind) })),
 ]
 

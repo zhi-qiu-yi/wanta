@@ -12,20 +12,6 @@ afterEach(async () => {
 })
 
 describe("ACP subprocess environment", () => {
-  test.runIf(process.platform !== "win32")("injects the resolved Codex CLI path for the packaged bridge", async () => {
-    const directory = await mkdtemp(path.join(os.tmpdir(), "wanta-acp-runtime-"))
-    temporaryDirectories.push(directory)
-    const codexPath = path.join(directory, "codex")
-    await writeFile(codexPath, "#!/bin/sh\nexit 0\n", "utf8")
-    await chmod(codexPath, 0o755)
-
-    const env = await acpSubprocessEnvironment(ACP_AGENT_REGISTRY.codex, directory, {})
-
-    expect(env.CODEX_PATH).toBe(codexPath)
-    expect(env.PATH).toBe(directory)
-    expect(env.WANTA_NODE_RUNTIME).toBe(process.execPath)
-  })
-
   test.runIf(process.platform !== "win32")("injects the user's Claude CLI path for the Claude ACP bridge", async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), "wanta-acp-runtime-"))
     temporaryDirectories.push(directory)
@@ -41,11 +27,11 @@ describe("ACP subprocess environment", () => {
   })
 
   test("preserves an explicit bridge runtime override", async () => {
-    const env = await acpSubprocessEnvironment(ACP_AGENT_REGISTRY.codex, "", {
-      CODEX_PATH: "/custom/codex",
+    const env = await acpSubprocessEnvironment(ACP_AGENT_REGISTRY["claude-code"], "", {
+      CLAUDE_CODE_EXECUTABLE: "/custom/claude",
     })
 
-    expect(env.CODEX_PATH).toBe("/custom/codex")
+    expect(env.CLAUDE_CODE_EXECUTABLE).toBe("/custom/claude")
   })
 
   test("preserves the shared managed command environment for every ACP agent", async () => {
@@ -64,8 +50,8 @@ describe("ACP subprocess environment", () => {
   })
 
   test("fails clearly when the bridge runtime is unavailable", async () => {
-    await expect(acpSubprocessEnvironment(ACP_AGENT_REGISTRY.codex, "", {})).rejects.toThrow(
-      "Codex CLI was not found on this machine",
+    await expect(acpSubprocessEnvironment(ACP_AGENT_REGISTRY["claude-code"], "", {})).rejects.toThrow(
+      "Claude Code CLI was not found on this machine",
     )
   })
 
@@ -73,6 +59,6 @@ describe("ACP subprocess environment", () => {
     const env = await acpSubprocessEnvironment(ACP_AGENT_REGISTRY.grok, "/bin", { SAMPLE: "value" })
 
     expect(env).toMatchObject({ PATH: "/bin", SAMPLE: "value", WANTA_NODE_RUNTIME: process.execPath })
-    expect(env.CODEX_PATH).toBeUndefined()
+    expect(env.CLAUDE_CODE_EXECUTABLE).toBeUndefined()
   })
 })

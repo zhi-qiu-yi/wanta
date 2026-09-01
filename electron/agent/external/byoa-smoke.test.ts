@@ -7,6 +7,7 @@ import path from "node:path"
 import { expect, test } from "vitest"
 import { AcpAgentAdapter } from "../acp/adapter.ts"
 import { ACP_AGENT_REGISTRY } from "../acp/registry.ts"
+import { CodexAppServerAdapter } from "../codex/app-server.ts"
 import { probeExternalAgent } from "./probe.ts"
 import { mintExternalSessionId } from "./session-id.ts"
 
@@ -127,42 +128,34 @@ test.runIf(enabled)(
   },
 )
 
-test.runIf(enabled)(
-  "codex adapter completes a real ACP turn via the codex-acp bridge",
-  { timeout: 180_000 },
-  async () => {
-    const scratchRootDir = await mkdtemp(path.join(os.tmpdir(), "wanta-byoa-smoke-codex-"))
-    const registration = ACP_AGENT_REGISTRY["codex"]
-    // codex-acp is npm-distributed; dev resolves it from node_modules/.bin like create.ts does.
-    const probeOptions = { extraBinDirectories: [path.join(process.cwd(), "node_modules", ".bin")] }
-    const adapter = new AcpAgentAdapter({
-      kind: "codex",
-      registration,
-      probe: () => probeExternalAgent("codex", probeOptions),
-      scratchRootDir,
-    })
-    try {
-      const status = await adapter.runtimeStatus()
-      if (status.binary.status !== "detected") {
-        console.warn("[byoa-smoke] codex-acp bridge not detected; smoke degraded to probe-only")
-        return
-      }
-      const outcome = await runSmokeTurn(
-        adapter,
-        mintExternalSessionId("codex"),
-        "Reply with exactly the two words: SMOKE OK. Do not use any tools.",
-      )
-      expectUsableOutcome(outcome, registration.loginHint)
-      if (outcome.completed) {
-        expect(outcome.assistantText).toMatch(/SMOKE OK/iu)
-      }
-      await reportOutcome("codex", outcome)
-    } finally {
-      await adapter.stop()
-      await rm(scratchRootDir, { recursive: true, force: true }).catch(() => undefined)
+test.runIf(enabled)("codex adapter completes a real app-server turn", { timeout: 180_000 }, async () => {
+  const scratchRootDir = await mkdtemp(path.join(os.tmpdir(), "wanta-byoa-smoke-codex-"))
+  const probeOptions = { extraBinDirectories: [path.join(process.cwd(), "node_modules", ".bin")] }
+  const adapter = new CodexAppServerAdapter({
+    probe: () => probeExternalAgent("codex", probeOptions),
+    scratchRootDir,
+  })
+  try {
+    const status = await adapter.runtimeStatus()
+    if (status.binary.status !== "detected") {
+      console.warn("[byoa-smoke] codex CLI not detected; smoke degraded to probe-only")
+      return
     }
-  },
-)
+    const outcome = await runSmokeTurn(
+      adapter,
+      mintExternalSessionId("codex"),
+      "Reply with exactly the two words: SMOKE OK. Do not use any tools.",
+    )
+    expectUsableOutcome(outcome, status.loginHint)
+    if (outcome.completed) {
+      expect(outcome.assistantText).toMatch(/SMOKE OK/iu)
+    }
+    await reportOutcome("codex", outcome)
+  } finally {
+    await adapter.stop()
+    await rm(scratchRootDir, { recursive: true, force: true }).catch(() => undefined)
+  }
+})
 
 test.runIf(enabled)("grok adapter completes a real ACP turn with the installed CLI", { timeout: 180_000 }, async () => {
   const scratchRootDir = await mkdtemp(path.join(os.tmpdir(), "wanta-byoa-smoke-grok-"))

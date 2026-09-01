@@ -1,8 +1,8 @@
 import type { AgentPermissionMode } from "../../chat/common.ts"
-import type { AcpAgentKind, AcpAgentRegistration } from "../acp/registry.ts"
+import type { AcpAgentRegistration } from "../acp/registry.ts"
 
 import { AGENT_PERMISSION_MODES } from "../../chat/common.ts"
-import { ACP_AGENT_REGISTRY } from "../acp/registry.ts"
+import { ACP_AGENT_KINDS, ACP_AGENT_REGISTRY } from "../acp/registry.ts"
 
 // Central capability declaration for every agent kind (BYOA).
 //
@@ -12,8 +12,9 @@ import { ACP_AGENT_REGISTRY } from "../acp/registry.ts"
 // from these declarations and from reflected adapter events — never from
 // `if (agent === "...")` branches.
 
-/** Closed set of integrated agents: built-in kernel plus registry-backed ACP agents. */
-export type AgentKind = "opencode" | AcpAgentKind
+/** Closed set of integrated agents. */
+type NativeAgentKind = "opencode" | "codex"
+export type AgentKind = NativeAgentKind | (typeof ACP_AGENT_KINDS)[number]
 
 /**
  * Which optional parts of the input contract the adapter genuinely honors.
@@ -82,10 +83,10 @@ const externalAgentInputs: AgentInputCapabilityFlags = {
   setEffort: false,
 }
 
-function acpAgentProfiles(): Record<AcpAgentKind, AgentProfile> {
-  const profiles = {} as Record<AcpAgentKind, AgentProfile>
-  const entries = Object.entries(ACP_AGENT_REGISTRY) as Array<[AcpAgentKind, AcpAgentRegistration]>
-  for (const [kind, registration] of entries) {
+function acpAgentProfiles(): Record<(typeof ACP_AGENT_KINDS)[number], AgentProfile> {
+  const profiles = {} as Record<(typeof ACP_AGENT_KINDS)[number], AgentProfile>
+  for (const kind of ACP_AGENT_KINDS) {
+    const registration: AcpAgentRegistration = ACP_AGENT_REGISTRY[kind]
     const modeMap = registration.permissionModeMap ?? {}
     profiles[kind] = {
       kind,
@@ -125,12 +126,32 @@ export const AGENT_PROFILES = {
     },
     permissionModes: ["default", "full_access"],
   },
+  codex: {
+    kind: "codex",
+    displayName: "Codex",
+    modelSource: "agent",
+    auth: { kind: "agent-cli", loginCommand: "codex login" },
+    inputs: {
+      authenticate: false,
+      attachments: true,
+      // Codex CLI 0.149.x app-server does not expose the experimental
+      // collaborationMode field, so do not advertise unsupported work modes.
+      modes: false,
+      permissionResponse: true,
+      questionResponse: false,
+      setModel: true,
+      setEffort: true,
+    },
+    permissionModes: ["default", "read_only", "accept_edits", "plan", "auto", "full_access"],
+  },
   ...acpAgentProfiles(),
 } satisfies Record<AgentKind, AgentProfile> as Record<AgentKind, AgentProfile>
 
 /** The agent's login-command hint; empty for Wanta-account agents. */
 export function agentLoginHint(kind: AgentKind): string {
-  return kind === "opencode" ? "" : ACP_AGENT_REGISTRY[kind].loginHint
+  if (kind === "opencode") return ""
+  if (kind === "codex") return "Run `codex login` in a terminal to sign in, then retry."
+  return ACP_AGENT_REGISTRY[kind].loginHint
 }
 
 /** Agent kinds handled by external adapters (everything except the built-in kernel). */

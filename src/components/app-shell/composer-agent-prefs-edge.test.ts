@@ -157,10 +157,10 @@ describe("composer-agent-prefs: auto permission mode", () => {
     expect(readStoredAgentComposerPrefs(storage, "claude-code")).toEqual({ permissionMode: "auto" })
   })
 
-  it("a stored auto mode degrades to defaults for agents that do not declare it", () => {
+  it("a stored auto mode is retained for Codex app-server", () => {
     const storage = memoryStorage({
       [KEY]: JSON.stringify({ byAgent: { codex: { permissionMode: "auto" } } }),
     })
-    expect(readStoredAgentComposerPrefs(storage, "codex")).toEqual({})
+    expect(readStoredAgentComposerPrefs(storage, "codex")).toEqual({ permissionMode: "auto" })
   })
 })

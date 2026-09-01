@@ -3,8 +3,8 @@ import { test } from "vitest"
 import { externalExecutableNeedsShell } from "./executable.ts"
 
 test("only Windows command shims require a shell", () => {
-  assert.equal(externalExecutableNeedsShell("C:\\app\\codex-acp.cmd", "win32"), true)
-  assert.equal(externalExecutableNeedsShell("C:\\app\\codex-acp.BAT", "win32"), true)
-  assert.equal(externalExecutableNeedsShell("C:\\app\\codex-acp.exe", "win32"), false)
-  assert.equal(externalExecutableNeedsShell("/app/codex-acp", "darwin"), false)
+  assert.equal(externalExecutableNeedsShell("C:\\app\\agent-bridge.cmd", "win32"), true)
+  assert.equal(externalExecutableNeedsShell("C:\\app\\agent-bridge.BAT", "win32"), true)
+  assert.equal(externalExecutableNeedsShell("C:\\app\\agent-bridge.exe", "win32"), false)
+  assert.equal(externalExecutableNeedsShell("/app/agent-bridge", "darwin"), false)
 })

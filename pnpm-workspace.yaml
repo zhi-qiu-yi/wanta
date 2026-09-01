@@ -8,12 +8,10 @@ allowBuilds:
   protobufjs: true
   sqlite3: true
 
-# The Claude and Codex ACP bridges pull the native Claude Code / Codex CLI as
-# platform-specific optional packages (~550 MB per host). Wanta never uses them:
-# the bridges always receive the user's own CLI through CLAUDE_CODE_EXECUTABLE /
-# CODEX_PATH, and packaged builds ship only the bridge JS (see
-# scripts/prepare-binaries.ts and electron/agent/acp/registry.ts). Skip the
-# download so the dev tree stays free of agent binaries.
+# The Claude ACP bridge pulls the native Claude Code CLI as a platform-specific
+# optional package. Wanta never uses that bundled runtime: the bridge receives
+# the user's own CLI through CLAUDE_CODE_EXECUTABLE. Skip these downloads so
+# the dev tree stays free of bundled agent binaries.
 ignoredOptionalDependencies:
   - "@anthropic-ai/claude-agent-sdk-darwin-arm64"
   - "@anthropic-ai/claude-agent-sdk-darwin-x64"
@@ -23,9 +21,3 @@ ignoredOptionalDependencies:
   - "@anthropic-ai/claude-agent-sdk-linux-x64-musl"
   - "@anthropic-ai/claude-agent-sdk-win32-arm64"
   - "@anthropic-ai/claude-agent-sdk-win32-x64"
-  - "@openai/codex-darwin-arm64"
-  - "@openai/codex-darwin-x64"
-  - "@openai/codex-linux-arm64"
-  - "@openai/codex-linux-x64"
-  - "@openai/codex-win32-arm64"
-  - "@openai/codex-win32-x64"

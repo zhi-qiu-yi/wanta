@@ -6,10 +6,11 @@ import type { HostMcpServerProvider } from "./host-mcp.ts"
 import path from "node:path"
 import { AcpAgentAdapter } from "../acp/adapter.ts"
 import { ACP_AGENT_KINDS, ACP_AGENT_REGISTRY } from "../acp/registry.ts"
+import { CodexAppServerAdapter } from "../codex/app-server.ts"
 import { probeExternalAgent } from "./probe.ts"
 
-// Assembly of the app-lifetime external adapter set. Every external agent,
-// including Claude Code, is registry-backed and uses the generic ACP adapter.
+// Assembly of the app-lifetime external adapter set. Codex uses the native
+// app-server adapter; ACP registry entries cover Claude Code and Grok.
 
 export interface CreateExternalAgentsOptions {
   /** Repo root in dev (node_modules/.bin lookup for npm-distributed ACP bridges). */
@@ -32,6 +33,15 @@ export function createExternalAgents(
       : [path.join(options.appRoot, "node_modules", ".bin")]
   const probeOptions = { extraBinDirectories }
   const agents = new Map<ExternalAgentKind, ExternalAgentAdapter>()
+  agents.set(
+    "codex",
+    new CodexAppServerAdapter({
+      probe: () => probeExternalAgent("codex", probeOptions),
+      scratchRootDir: path.join(options.scratchRootDir, "codex"),
+      transcriptDir: path.join(options.scratchRootDir, "codex", "transcripts"),
+      commandEnvironment: options.commandEnvironment,
+    }),
+  )
   for (const kind of ACP_AGENT_KINDS) {
     const registration: AcpAgentRegistration = ACP_AGENT_REGISTRY[kind]
     agents.set(

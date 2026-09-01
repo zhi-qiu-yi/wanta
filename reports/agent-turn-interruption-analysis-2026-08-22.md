@@ -11,7 +11,7 @@
 
 因此，最主要的归因不是模型随机不说话，也不是单纯的渲染问题，而是 **BYOA + Link transport gate + 回合完成判定** 共同造成的回归。对应修复为 `0de0c0be`（2026-08-20，`fix: keep OO Connect agent turns running (#339)`）；当前代码基线已经包含该修复。
 
-此前 ACP/Codex 外部 Agent 的 `prompt` promise 只要 resolve，适配器就无条件发出 `messageCompleted`，且 transcript 会把最新 assistant message 合成为 `finishReason: "stop"`。该高风险路径现已修复：工具未结束、工具 error 后无后续自然语言、或非 `end_turn` stop reason 都会进入明确错误，而不是完成。剩余风险集中在各原生 Agent 的终态元数据不统一，以及尚未补齐的 turn-level 持久化诊断。
+此前 Codex 外部 Agent 的 `prompt` promise 只要 resolve，适配器就无条件发出 `messageCompleted`，且 transcript 会把最新 assistant message 合成为 `finishReason: "stop"`。该高风险路径现已修复：工具未结束、工具 error 后无后续自然语言、或非 `end_turn` stop reason 都会进入明确错误，而不是完成。剩余风险集中在各原生 Agent 的终态元数据不统一，以及尚未补齐的 turn-level 持久化诊断。
 
 ## 证据与时间线
 
@@ -29,10 +29,10 @@
 
 本机保存的外部 Agent transcript 不是全量遥测样本，不能用来推断线上发生率；但它给出了与截图同类任务的直接、可复现证据。
 
-| Adapter      | 已完成用户回合 | 未完成用户回合 | 未完成率 | 观察                                                                                                                                      |
-| ------------ | -------------: | -------------: | -------: | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Codex（ACP） |        18 / 22 |              4 |    18.2% | 3 个未完成样本在 2026-08-13，都停在 PostHog `call_action(list_projects)` 的 error 工具步骤；另 1 个样本已产生报告正文但没有记录完成事件。 |
-| Claude Code  |          4 / 6 |              2 |    33.3% | 2026-08-13/14 的两个样本停在 `load_skill` 或 `Bash` 工具未完成，工具错误为“agent stopped before this tool call completed”。               |
+| Adapter           | 已完成用户回合 | 未完成用户回合 | 未完成率 | 观察                                                                                                                                      |
+| ----------------- | -------------: | -------------: | -------: | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Codex（旧适配器） |        18 / 22 |              4 |    18.2% | 3 个未完成样本在 2026-08-13，都停在 PostHog `call_action(list_projects)` 的 error 工具步骤；另 1 个样本已产生报告正文但没有记录完成事件。 |
+| Claude Code       |          4 / 6 |              2 |    33.3% | 2026-08-13/14 的两个样本停在 `load_skill` 或 `Bash` 工具未完成，工具错误为“agent stopped before this tool call completed”。               |
 
 三个 Codex 样本的最后工具均为：
 
@@ -44,7 +44,7 @@ status=error
 随后 transcript 没有 final text、`completedAt` 或错误回合收口。这说明两件事：
 
 1. 早期故障并不只是 UI 没有渲染 token；外部 Agent 确实在连接器工具出错后停止了。
-2. 当时的记录没有保存该 host-tool error 的错误正文，事后无法判断是 workspace/授权/参数/ACP transport 哪一层失败。这是 observability 缺口。
+2. 当时的记录没有保存该 host-tool error 的错误正文，事后无法判断是 workspace、授权、参数还是适配器传输层失败。这是 observability 缺口。
 
 截图的文字“我先看一下 PostHog 连接器里有哪…”正好是连接器发现/列表的首个工具步骤，和上述失败形态相符。由于截图没有会话 ID 或时间戳，不能把它与某一份 transcript 逐条等同；这里的结论是**高置信度链路匹配**，不是对单次截图的逐位归档证明。
 
@@ -85,7 +85,7 @@ finishReason = "stop"
 
 这会抹平“正常最终回答”“最后一步是工具调用”“Agent 在工具错误后错误 resolve”之间的差别；当时的 Chat 完成检查会把这样的 `stop` 放行。
 
-这是修复前最可能继续制造“没有后续回答但界面已完成”的机制，特别影响 Codex/ACP，而不完全等同于 `0de0c0be` 已修复的 OpenCode `session.idle` 路径。
+这是修复前最可能继续制造“没有后续回答但界面已完成”的机制，特别影响当时的 Codex 适配器，而不完全等同于 `0de0c0be` 已修复的 OpenCode `session.idle` 路径。
 
 ### P1：UI 的成功态过早且没有“无 final answer”保护
 
@@ -158,7 +158,7 @@ finishReason = "stop"
 
 至少覆盖以下组合：
 
-| 场景                                                |                OpenCode |               Codex/ACP |                            Claude Code |
+| 场景                                                |                OpenCode |                   Codex |                            Claude Code |
 | --------------------------------------------------- | ----------------------: | ----------------------: | -------------------------------------: |
 | `oo connector apps/run/proxy` + active Link runtime |  自动允许、继续最终答复 |                      同 |                                     同 |
 | `wanta_link.call_action` 成功                       |                正常完成 |                正常完成 |                               正常完成 |

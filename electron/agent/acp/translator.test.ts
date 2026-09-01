@@ -115,37 +115,6 @@ describe("agent_message_chunk", () => {
     expect(events).toEqual([])
   })
 
-  test("drops codex-acp skill-budget warnings instead of rendering them as assistant text", () => {
-    const translator = createAcpSessionTranslator(SESSION_ID)
-    translator.noteTurnStarted()
-    expect(
-      translator.translate(
-        textChunk(
-          "Warning: Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter.\n\n",
-        ),
-      ),
-    ).toEqual([])
-    expect(translator.translate(textChunk("Actual answer."))).toMatchObject([
-      { event: "messageStarted" },
-      { event: "messageDelta", data: { text: "Actual answer." } },
-    ])
-  })
-
-  test("strips a codex-acp skill-budget warning while preserving model text in the same chunk", () => {
-    const translator = createAcpSessionTranslator(SESSION_ID)
-    translator.noteTurnStarted()
-    expect(
-      translator.translate(
-        textChunk(
-          "Warning: Skill descriptions were shortened to fit the skills context budget. More detail.\n\nActual answer.",
-        ),
-      ),
-    ).toMatchObject([
-      { event: "messageStarted" },
-      { event: "messageDelta", data: { delta: "Actual answer.", text: "Actual answer." } },
-    ])
-  })
-
   test("projects context compaction as lifecycle activity instead of assistant text", () => {
     const translator = createAcpSessionTranslator(SESSION_ID)
     translator.noteTurnStarted()

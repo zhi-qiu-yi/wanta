@@ -75,15 +75,15 @@ Wanta is a general work Agent today, but the architecture is intended to be adap
 operations Agent, research Agent, support Agent, ecommerce Agent, enterprise knowledge Agent, internal
 tool, or another vertical desktop product.
 
-| Start with                                                           | Make it yours                                                    |
-| -------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| Built-in OpenCode runtime plus Claude Code, Codex, and Grok adapters | Add another ACP Agent through the registry-backed adapter layer  |
-| Local files, shell, scripts, search, and web access                  | Add tools for your product, industry, or internal systems        |
-| OpenAI-compatible custom models and OOMOL-hosted models              | Bring your own model catalog and provider defaults               |
-| Streaming chat, tool activity, approvals, questions, and attachments | Redesign the workflow while keeping the runtime integration      |
-| Artifact handling for generated work                                 | Add product-specific outputs, previews, and actions              |
-| Cross-platform Electron packaging and updates                        | Apply your own name, identity, distribution, and release process |
-| OpenConnector-compatible SaaS action discovery and execution         | Connect your own Providers or use the hosted connector ecosystem |
+| Start with                                                           | Make it yours                                                      |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Built-in OpenCode runtime plus Claude Code, Codex, and Grok adapters | Add another coding Agent through the registry-backed adapter layer |
+| Local files, shell, scripts, search, and web access                  | Add tools for your product, industry, or internal systems          |
+| OpenAI-compatible custom models and OOMOL-hosted models              | Bring your own model catalog and provider defaults                 |
+| Streaming chat, tool activity, approvals, questions, and attachments | Redesign the workflow while keeping the runtime integration        |
+| Artifact handling for generated work                                 | Add product-specific outputs, previews, and actions                |
+| Cross-platform Electron packaging and updates                        | Apply your own name, identity, distribution, and release process   |
+| OpenConnector-compatible SaaS action discovery and execution         | Connect your own Providers or use the hosted connector ecosystem   |
 
 ## See Wanta in Action
 

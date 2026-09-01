@@ -197,7 +197,7 @@ interface AdapterHarness {
 
 async function createHarness(
   behavior: FakeAgentBehavior = {},
-  kind: keyof typeof ACP_AGENT_REGISTRY = "codex",
+  kind: keyof typeof ACP_AGENT_REGISTRY = "claude-code",
 ): Promise<AdapterHarness> {
   const fake = createFakeAgent(behavior)
   const registration = ACP_AGENT_REGISTRY[kind]
@@ -681,11 +681,11 @@ describe("acp selection: prompt-borne selections", () => {
 
 describe("acp selection: permission-mode projection", () => {
   const MODES_ALL = {
-    currentModeId: "agent",
+    currentModeId: "default",
     availableModes: [
-      { id: "read-only", name: "Read only" },
-      { id: "agent", name: "Agent" },
-      { id: "agent-full-access", name: "Full access" },
+      { id: "default", name: "Default" },
+      { id: "acceptEdits", name: "Accept edits" },
+      { id: "bypassPermissions", name: "Full access" },
     ],
   }
 
@@ -697,10 +697,10 @@ describe("acp selection: permission-mode projection", () => {
     // prompt — at that point no ACP session exists yet (chat/node.ts:1819
     // runs before adapter.send creates it). Without a desired-mode stash the
     // first turn runs in the agent's default mode instead of the user's pick.
-    await harness.adapter.applyPermissionMode(WANTA_SESSION_ID, "read_only")
+    await harness.adapter.applyPermissionMode(WANTA_SESSION_ID, "accept_edits")
     await harness.adapter.send(promptInput())
     await harness.waitFor((event) => event.event === "messageCompleted")
-    expect(harness.fake.setModeRequests.map((request) => request.modeId)).toContain("read-only")
+    expect(harness.fake.setModeRequests.map((request) => request.modeId)).toContain("acceptEdits")
   })
 
   test("a mapped mode the live session does not advertise is skipped without error", async () => {
@@ -708,17 +708,17 @@ describe("acp selection: permission-mode projection", () => {
       newSession: () => ({
         sessionId: "acp-session-1",
         modes: {
-          currentModeId: "agent",
+          currentModeId: "default",
           availableModes: [
-            { id: "read-only", name: "Read only" },
-            { id: "agent", name: "Agent" },
+            { id: "default", name: "Default" },
+            { id: "acceptEdits", name: "Accept edits" },
           ],
         },
       }),
     })
     await harness.adapter.send(promptInput())
     await harness.waitFor((event) => event.event === "messageCompleted")
-    // codex maps full_access -> agent-full-access, which this session lacks.
+    // The registry maps full access to bypassPermissions, which this session lacks.
     await expect(harness.adapter.applyPermissionMode(WANTA_SESSION_ID, "full_access")).rejects.toThrow(
       /permission mode "full_access" is not available/u,
     )
@@ -733,11 +733,11 @@ describe("acp selection: permission-mode projection", () => {
     await harness.waitFor((event) => event.event === "messageCompleted")
     await Promise.all([
       harness.adapter.applyPermissionMode(WANTA_SESSION_ID, "full_access"),
-      harness.adapter.applyPermissionMode(WANTA_SESSION_ID, "read_only"),
+      harness.adapter.applyPermissionMode(WANTA_SESSION_ID, "accept_edits"),
     ])
     expect(harness.fake.setModeRequests.map((request) => request.modeId).sort()).toEqual([
-      "agent-full-access",
-      "read-only",
+      "acceptEdits",
+      "bypassPermissions",
     ])
   })
 

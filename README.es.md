@@ -77,15 +77,15 @@ Wanta es hoy un agente de trabajo general, pero su arquitectura está pensada pa
 convertirse en un agente de operaciones, investigación, soporte, comercio electrónico o conocimiento
 empresarial, una herramienta interna u otro producto de escritorio vertical.
 
-| Punto de partida                                                                 | Hazlo tuyo                                                              |
-| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| Runtime OpenCode integrado y adaptadores para Claude Code, Codex y Grok          | Añade otro agente ACP mediante la capa de adaptadores con registro      |
-| Archivos locales, shell, scripts, búsqueda y acceso web                          | Añade herramientas para tu producto, sector o sistemas internos         |
-| Modelos personalizados compatibles con OpenAI y modelos alojados por OOMOL       | Incorpora tu propio catálogo de modelos y proveedores predeterminados   |
-| Chat en streaming, actividad de herramientas, aprobaciones, preguntas y adjuntos | Rediseña el flujo de trabajo conservando la integración con el runtime  |
-| Gestión de los artefactos generados                                              | Añade resultados, vistas previas y acciones específicas del producto    |
-| Empaquetado y actualizaciones multiplataforma con Electron                       | Aplica tu nombre, identidad, distribución y proceso de publicación      |
-| Descubrimiento y ejecución de acciones SaaS compatibles con OpenConnector        | Conecta tus propios Providers o usa el ecosistema alojado de conectores |
+| Punto de partida                                                                 | Hazlo tuyo                                                               |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Runtime OpenCode integrado y adaptadores para Claude Code, Codex y Grok          | Añade otro agente de código mediante la capa de adaptadores con registro |
+| Archivos locales, shell, scripts, búsqueda y acceso web                          | Añade herramientas para tu producto, sector o sistemas internos          |
+| Modelos personalizados compatibles con OpenAI y modelos alojados por OOMOL       | Incorpora tu propio catálogo de modelos y proveedores predeterminados    |
+| Chat en streaming, actividad de herramientas, aprobaciones, preguntas y adjuntos | Rediseña el flujo de trabajo conservando la integración con el runtime   |
+| Gestión de los artefactos generados                                              | Añade resultados, vistas previas y acciones específicas del producto     |
+| Empaquetado y actualizaciones multiplataforma con Electron                       | Aplica tu nombre, identidad, distribución y proceso de publicación       |
+| Descubrimiento y ejecución de acciones SaaS compatibles con OpenConnector        | Conecta tus propios Providers o usa el ecosistema alojado de conectores  |
 
 ## Wanta en acción
 
