@@ -22,6 +22,7 @@ import {
 import * as React from "react"
 import { APP_COMMANDS } from "../../../electron/app-command.ts"
 import { SIDEBAR_MAX_WIDTH_PX, SIDEBAR_MIN_WIDTH_PX } from "./app-shell-model.ts"
+import { projectSidebarSessionPageSize } from "./app-sidebar-model.ts"
 import {
   ProjectSidebarEmptyState,
   ProjectSidebarGroupItem,
@@ -83,6 +84,7 @@ export const AppShellNavigationSidebar = React.memo(function AppShellNavigationS
   onSetSidebarSegment,
   onSetTaskSortMode,
   onShowProjectInFolder,
+  onShowMoreProjectSessions,
   onSidebarResizeKeyDown,
   onSidebarResizeStart,
   onToggleSidebar,
@@ -138,6 +140,7 @@ export const AppShellNavigationSidebar = React.memo(function AppShellNavigationS
   onSetSidebarSegment: (segment: SidebarSegment) => void
   onSetTaskSortMode: (mode: SidebarTaskSortMode) => void
   onShowProjectInFolder: (project: SessionProject) => void
+  onShowMoreProjectSessions: (projectId: string) => void
   onSidebarResizeKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => void
   onSidebarResizeStart: (event: React.PointerEvent<HTMLDivElement>) => void
   onToggleSidebar: () => void
@@ -192,6 +195,8 @@ export const AppShellNavigationSidebar = React.memo(function AppShellNavigationS
       onNewSession={onSelectProjectDraft}
       onPinProject={onPinProject}
       onShowProjectInFolder={onShowProjectInFolder}
+      onShowMoreSessions={() => onShowMoreProjectSessions(group.project.id)}
+      showMoreCount={Math.min(projectSidebarSessionPageSize, group.hiddenCount)}
       onRenameProject={onRenameProjectRequest}
       onArchiveProject={onArchiveProjectRequest}
       onRemoveProject={onRemoveProjectRequest}

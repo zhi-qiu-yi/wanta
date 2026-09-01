@@ -883,6 +883,7 @@ export function AppShell({ auth }: { auth: UseAuth }) {
     projectGroups: projectSidebarGroups,
     regularProjectGroups: projectRegularGroups,
     selectableSessions: selectableSidebarSessions,
+    showMoreProjectSessions,
     taskGroups: sidebarSessionGroups,
   } = useAppShellSidebarSessions({
     getSessionRunStartedAt,
@@ -2124,6 +2125,7 @@ export function AppShell({ auth }: { auth: UseAuth }) {
           projectRegularGroups={projectRegularGroups}
           projectSessions={visibleProjectSessions}
           projectSidebarGroups={projectSidebarGroups}
+          onShowMoreProjectSessions={showMoreProjectSessions}
           restoring={isSidebarRestoring}
           sessionsError={sessionsError}
           showKnowledge={knowledgeBaseBetaEnabled}

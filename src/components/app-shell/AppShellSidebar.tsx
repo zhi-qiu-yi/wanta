@@ -241,7 +241,9 @@ export function ProjectSidebarGroupItem({
   onPinSession,
   onRenameSession,
   onSelectSession,
+  onShowMoreSessions,
   selectedSessionId,
+  showMoreCount,
   onShowProjectInFolder,
 }: {
   expanded: boolean
@@ -260,7 +262,9 @@ export function ProjectSidebarGroupItem({
   onPinSession: (session: SessionInfo) => void
   onRenameSession: (session: SessionInfo) => void
   onSelectSession: (session: SessionInfo) => void
+  onShowMoreSessions: () => void
   selectedSessionId: string | null
+  showMoreCount: number
   onShowProjectInFolder: (project: SessionProject) => void
 }) {
   const t = useT()
@@ -384,9 +388,13 @@ export function ProjectSidebarGroupItem({
             </div>
           )}
           {group.hiddenCount > 0 ? (
-            <div className="oo-text-caption px-3 py-1 text-sidebar-foreground/60">
-              {t("project.hiddenSessions", { count: group.hiddenCount })}
-            </div>
+            <button
+              type="button"
+              className="oo-text-caption mx-3 h-7 rounded-md px-3 text-left text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              onClick={onShowMoreSessions}
+            >
+              {t("project.hiddenSessions", { count: showMoreCount })}
+            </button>
           ) : null}
         </div>
       ) : null}

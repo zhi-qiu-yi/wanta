@@ -82,6 +82,18 @@ test("buildProjectSidebarGroups keeps the selected hidden child visible", () => 
   assert.equal(groups[0]?.hiddenCount, 0)
 })
 
+test("buildProjectSidebarGroups applies a per-project pagination limit", () => {
+  const groups = buildProjectSidebarGroups(
+    [project("project", 1_000)],
+    Array.from({ length: 12 }, (_, index) => session(`session-${index + 1}`, "project", index + 1)),
+    {},
+    { sessionLimits: new Map([["project", 10]]) },
+  )
+
+  assert.equal(groups[0]?.sessions.length, 10)
+  assert.equal(groups[0]?.hiddenCount, 2)
+})
+
 test("buildProjectSidebarGroups keeps project order while a child session is running", () => {
   const groups = buildProjectSidebarGroups(
     [project("idle-project", 9_000), project("running-project", 1_000)],

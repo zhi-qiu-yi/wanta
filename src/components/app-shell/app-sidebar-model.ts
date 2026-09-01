@@ -10,18 +10,24 @@ export interface ProjectSidebarGroup {
 }
 
 export interface ProjectSidebarOptions {
+  sessionLimits?: ReadonlyMap<string, number>
   selectedSessionId?: string | null
 }
 
-const projectSidebarSessionLimit = 5
+export const projectSidebarSessionPageSize = 5
 
 function compareProjectSidebarGroups(left: ProjectSidebarGroup, right: ProjectSidebarGroup): number {
   const pinnedDiff = (right.project.pinnedAt ?? 0) - (left.project.pinnedAt ?? 0)
   return pinnedDiff || right.project.updatedAt - left.project.updatedAt
 }
 
-function visibleProjectSidebarSessions(sessions: SessionInfo[], options: ProjectSidebarOptions = {}): SessionInfo[] {
-  const visibleSessions = sessions.slice(0, projectSidebarSessionLimit)
+function visibleProjectSidebarSessions(
+  projectId: string,
+  sessions: SessionInfo[],
+  options: ProjectSidebarOptions = {},
+): SessionInfo[] {
+  const sessionLimit = options.sessionLimits?.get(projectId) ?? projectSidebarSessionPageSize
+  const visibleSessions = sessions.slice(0, sessionLimit)
   if (!options.selectedSessionId || visibleSessions.some((session) => session.id === options.selectedSessionId)) {
     return visibleSessions
   }
@@ -54,7 +60,7 @@ export function buildProjectSidebarGroups(
       const projectSessions = (sessionsByProject.get(project.id) ?? [])
         .filter((session) => !session.archivedAt)
         .sort((a, b) => compareSidebarSessions(a, b, order))
-      const visibleSessions = visibleProjectSidebarSessions(projectSessions, options)
+      const visibleSessions = visibleProjectSidebarSessions(project.id, projectSessions, options)
       return {
         project,
         sessions: visibleSessions,
