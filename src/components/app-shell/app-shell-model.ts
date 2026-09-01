@@ -292,8 +292,7 @@ export function initialRoute(): Route {
     route === "skills" ||
     route === "knowledge" ||
     route === "teams" ||
-    route === "billing" ||
-    route === "archived"
+    route === "billing"
     ? route
     : "chat"
 }

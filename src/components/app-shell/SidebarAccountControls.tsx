@@ -4,7 +4,6 @@ import type { UseTeamWorkspace, WorkspaceSelection } from "@/hooks/useTeamWorksp
 
 import {
   AlertTriangle,
-  Archive,
   Building2,
   Check,
   ChevronsUpDown,
@@ -289,15 +288,6 @@ function AccountMenuContent({
       <DropdownMenuItem
         onSelect={() => {
           onClose()
-          onNavigate("archived")
-        }}
-      >
-        <Archive className="size-4" />
-        {t("archived.navTitle")}
-      </DropdownMenuItem>
-      <DropdownMenuItem
-        onSelect={() => {
-          onClose()
           onNavigate("settings")
         }}
       >
@@ -471,10 +461,9 @@ export function SidebarFooterControls({
                 type="button"
                 className={cn(
                   "oo-sidebar-account-trigger oo-sidebar-nav-item flex size-9 shrink-0 items-center justify-center rounded-md",
-                  (accountMenuOpen || activeRoute === "settings" || activeRoute === "archived") &&
-                    "bg-sidebar-accent text-sidebar-accent-foreground",
+                  (accountMenuOpen || activeRoute === "settings") && "bg-sidebar-accent text-sidebar-accent-foreground",
                 )}
-                data-active={activeRoute === "settings" || activeRoute === "archived" ? "true" : undefined}
+                data-active={activeRoute === "settings" ? "true" : undefined}
                 aria-label={t("sidebar.accountMenu")}
                 title={t("settings.title")}
               >

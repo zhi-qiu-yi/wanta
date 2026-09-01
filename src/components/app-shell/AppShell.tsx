@@ -20,6 +20,7 @@ import type { ChatTurnRetrySource } from "@/routes/Chat/chat-turns"
 import type { ComposerState } from "@/routes/Chat/composer-state"
 import type { ConnectionAuthIntent } from "@/routes/Connections/connection-route-model.ts"
 import type { ConnectionCatalogFilter } from "@/routes/Connections/connection-route-model.ts"
+import type { SettingsSectionId } from "@/routes/Settings"
 import type { ChatStatus } from "ai"
 
 import { PanelRightClose, PanelRightOpen } from "lucide-react"
@@ -125,9 +126,6 @@ import { summarizeEmptyStateConnections } from "@/routes/Chat/empty-state-connec
 import { normalizeConnectionCatalogFilter } from "@/routes/Connections/connection-route-model.ts"
 import { knowledgeBreadcrumbs, normalizeKnowledgePath } from "@/routes/Knowledge/knowledge-route-model.ts"
 
-const ArchivedRoute = React.lazy(() =>
-  import("@/routes/Archived").then((module) => ({ default: module.ArchivedRoute })),
-)
 const BillingRoute = React.lazy(() => import("@/routes/Billing").then((module) => ({ default: module.BillingRoute })))
 const ChatArea = React.lazy(() => import("@/routes/Chat").then((module) => ({ default: module.ChatArea })))
 const TasksDialog = React.lazy(() => import("@/routes/Tasks").then((module) => ({ default: module.TasksDialog })))
@@ -306,6 +304,8 @@ export function AppShell({ auth }: { auth: UseAuth }) {
     [projects, sessionsSettledForCurrentScope],
   )
   const [route, setRoute] = React.useState<Route>(initialRoute)
+  // 设置页当前分区（受控）：保留上次访问位置，运行时类入口可深链直达
+  const [settingsSection, setSettingsSection] = React.useState<SettingsSectionId>("general")
   React.useEffect(() => {
     if (!routeAvailableForRuntime(route, oomolEnabled)) {
       setRoute("chat")
@@ -981,9 +981,7 @@ export function AppShell({ auth }: { auth: UseAuth }) {
               ? t("knowledge.title")
               : route === "teams"
                 ? t("teams.title")
-                : route === "archived"
-                  ? t("archived.title")
-                  : (activeSession?.title ?? t("chat.newSession"))
+                : (activeSession?.title ?? t("chat.newSession"))
   const titlebarEditable = route === "chat" && Boolean(activeSession)
   const titlebarBreadcrumbs =
     route === "knowledge" && knowledgeBaseBetaEnabled
@@ -1742,6 +1740,20 @@ export function AppShell({ auth }: { auth: UseAuth }) {
     setSearchOpen(false)
     setRoute("settings")
   }, [])
+  // OpenConnector / 自托管相关入口：打开设置页并直达「运行环境」分区
+  const handleOpenRuntimeSettingsCommand = React.useCallback((): void => {
+    setSearchOpen(false)
+    setSettingsSection("runtime")
+    setRoute("settings")
+  }, [])
+  // 侧栏导航：支持携带设置分区深链（如「查看已归档任务」直达设置的已归档分区）
+  const handleSidebarNavigate = React.useCallback(
+    (next: Route, options?: { settingsSection?: SettingsSectionId }): void => {
+      if (options?.settingsSection) setSettingsSection(options.settingsSection)
+      setRoute(next)
+    },
+    [],
+  )
   const handleArtifactsToggle = React.useCallback((): void => {
     const next = !artifactsPanelOpen
     if (next) {
@@ -2046,10 +2058,19 @@ export function AppShell({ auth }: { auth: UseAuth }) {
       <>
         <React.Suspense fallback={<RouteLoadingFallback />}>
           <SettingsRoute
+            archivedSessions={{
+              listArchived,
+              ready,
+              refreshSessions,
+              removeSession: removeSessionWithRuntimeCleanup,
+              unarchiveSession: unarchive,
+            }}
             linkRuntime={linkRuntime}
+            section={settingsSection}
             update={appUpdate}
             titlebarActions={<AppUpdateTitlebarEntry update={appUpdate} />}
             onBack={() => setRoute("chat")}
+            onSectionChange={setSettingsSection}
           />
         </React.Suspense>
       </>
@@ -2068,24 +2089,6 @@ export function AppShell({ auth }: { auth: UseAuth }) {
             titlebarActions={<AppUpdateTitlebarEntry update={appUpdate} />}
             workspace={teamWorkspace.activeWorkspace}
             onBack={() => setRoute("chat")}
-          />
-        </React.Suspense>
-      </>
-    )
-  }
-
-  if (route === "archived") {
-    return (
-      <>
-        <React.Suspense fallback={<RouteLoadingFallback />}>
-          <ArchivedRoute
-            listArchived={listArchived}
-            onBack={() => setRoute("chat")}
-            refreshSessions={refreshSessions}
-            removeSession={removeSessionWithRuntimeCleanup}
-            ready={ready}
-            titlebarActions={<AppUpdateTitlebarEntry update={appUpdate} />}
-            unarchiveSession={unarchive}
           />
         </React.Suspense>
       </>
@@ -2140,7 +2143,7 @@ export function AppShell({ auth }: { auth: UseAuth }) {
           onLogout={auth.logout}
           onLogin={() => void auth.login()}
           onManageTasks={() => setTasksDialogOpen(true)}
-          onNavigate={setRoute}
+          onNavigate={handleSidebarNavigate}
           onNewSession={handleNewSessionWithKnowledgeReset}
           onOpenConnections={handleOpenConnectionsCommand}
           onOpenSearch={handleOpenSearch}
@@ -2206,7 +2209,10 @@ export function AppShell({ auth }: { auth: UseAuth }) {
               <React.Suspense fallback={<RouteLoadingFallback />}>
                 {route === "connections" ? (
                   linkRuntime.state?.active === "openconnector" ? (
-                    <OpenConnectorConnectionsPanel runtime={linkRuntime} onOpenSettings={handleOpenSettingsCommand} />
+                    <OpenConnectorConnectionsPanel
+                      runtime={linkRuntime}
+                      onOpenSettings={handleOpenRuntimeSettingsCommand}
+                    />
                   ) : oomolLinkActive ? (
                     <div className="h-full min-h-0 p-0">
                       <ConnectionsPanel
@@ -2219,7 +2225,7 @@ export function AppShell({ auth }: { auth: UseAuth }) {
                       />
                     </div>
                   ) : (
-                    <SelfHostedConnectionsPlaceholder onOpenSettings={() => setRoute("settings")} />
+                    <SelfHostedConnectionsPlaceholder onOpenSettings={handleOpenRuntimeSettingsCommand} />
                   )
                 ) : route === "skills" ? (
                   <SkillsRoute
@@ -2308,7 +2314,7 @@ export function AppShell({ auth }: { auth: UseAuth }) {
                           appSettings.settings.operatingMode === "self-managed" &&
                           !appSettings.settings.selfManagedSetupDismissed
                             ? {
-                                onConfigureOpenConnector: handleOpenSettingsCommand,
+                                onConfigureOpenConnector: handleOpenRuntimeSettingsCommand,
                                 onDismiss: () => {
                                   void appSettings.setSelfManagedSetupDismissed(true).catch((error: unknown) => {
                                     reportRendererHandledError(

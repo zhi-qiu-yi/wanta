@@ -1,1274 +1,137 @@
-import type { NotificationCapability, NotificationTestResult } from "../../../electron/attention/common.ts"
-import type { AuthAccountSummary } from "../../../electron/auth/common.ts"
-import type { CustomModelSummary } from "../../../electron/models/common.ts"
-import type { CompletionNotificationCondition, OperatingMode } from "../../../electron/settings/common.ts"
-import type { UpdateChannel } from "../../../electron/update/common.ts"
-import type { ThemePreference } from "@/components/theme-context"
+import type { SessionInfo } from "../../../electron/session/common.ts"
 import type { UseAppUpdate } from "@/hooks/useAppUpdate"
 import type { UseLinkRuntime } from "@/hooks/useLinkRuntime"
-import type { Locale, MessageKey } from "@/i18n/i18n"
-import type { UserFacingError } from "@/lib/user-facing-error"
+import type { MessageKey } from "@/i18n/i18n"
 
 import {
-  BellRingIcon,
-  BrainCircuitIcon,
-  CheckIcon,
-  CopyIcon,
-  DownloadIcon,
-  ExternalLinkIcon,
-  KeyRoundIcon,
-  LogOutIcon,
-  LogInIcon,
-  MonitorIcon,
-  MoonIcon,
-  PencilIcon,
-  PlusIcon,
-  RefreshCwIcon,
-  RotateCcwIcon,
+  ArchiveIcon,
+  CircleUserRoundIcon,
+  FlaskConicalIcon,
+  GlobeIcon,
+  InfoIcon,
   ServerIcon,
-  SunIcon,
-  Trash2Icon,
+  SlidersHorizontalIcon,
 } from "lucide-react"
 import * as React from "react"
-import { toast } from "sonner"
-import { branding } from "../../../electron/branding.ts"
-import { notificationPresentation } from "./notification-presentation.ts"
+import { AboutSection } from "./AboutSection.tsx"
+import { AccountSection } from "./AccountSection.tsx"
+import { BetaSection } from "./BetaSection.tsx"
+import { BrowserSection } from "./BrowserSection.tsx"
+import { GeneralSection } from "./GeneralSection.tsx"
+import { RuntimeSection } from "./RuntimeSection.tsx"
 import { shouldShowSelfManagedRuntimeSettings } from "./settings-presentation.ts"
-import { useBrowserService } from "@/components/AppContext"
-import { CachedAvatarImage } from "@/components/CachedAvatarImage"
-import { ErrorNotice } from "@/components/ErrorNotice"
-import { OpenConnectorEndpointFields } from "@/components/OpenConnectorEndpointFields"
 import { PageRouteShell } from "@/components/PageRouteShell"
-import { SectionHeading } from "@/components/SectionHeading"
-import { useTheme } from "@/components/theme-context"
-import { Button } from "@/components/ui/button"
-import {
-  ConfirmDialog,
-  ConfirmDialogAction,
-  ConfirmDialogCancel,
-  ConfirmDialogContent,
-  ConfirmDialogDescription,
-  ConfirmDialogFooter,
-  ConfirmDialogHeader,
-  ConfirmDialogTitle,
-} from "@/components/ui/confirm-dialog"
-import { Input } from "@/components/ui/input"
-import { Progress } from "@/components/ui/progress"
-import { Switch } from "@/components/ui/switch"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useAppSettings } from "@/hooks/useAppSettings"
 import { useAttention } from "@/hooks/useAttention"
 import { useAuth } from "@/hooks/useAuth"
 import { useI18n } from "@/i18n/i18n"
-import {
-  hasCompleteOpenConnectorEndpoints,
-  inferOpenConnectorDeploymentMode,
-  resolveOpenConnectorConsoleUrl,
-} from "@/lib/openconnector-deployment"
-import { resolveUserFacingError } from "@/lib/user-facing-error"
 import { cn } from "@/lib/utils"
-import { AddCustomModelDialog } from "@/routes/Chat/AddCustomModelDialog"
-import { useModelCatalog } from "@/routes/Chat/useModelCatalog"
+import { ArchivedSessionsPanel } from "@/routes/Archived"
 
-const themeOptions = [
-  { value: "light", labelKey: "settings.themeLight", icon: SunIcon },
-  { value: "dark", labelKey: "settings.themeDark", icon: MoonIcon },
-  { value: "system", labelKey: "settings.themeSystem", icon: MonitorIcon },
-] as const
+// 设置页左侧导航的分区标识；AppShell 通过受控 props 支持深链直达
+export type SettingsSectionId = "general" | "account" | "archived" | "browser" | "runtime" | "about" | "beta"
 
-const localeOptions: Array<{ value: Locale; label: string }> = [
-  { value: "zh-CN", label: "简体中文" },
-  { value: "en", label: "English" },
+// 「已归档」分区所需的会话操作，由 AppShell 从会话模型透传
+export interface SettingsArchivedSessionsProps {
+  listArchived: () => Promise<SessionInfo[]>
+  refreshSessions: () => Promise<void>
+  removeSession: (id: string) => Promise<void>
+  ready: boolean
+  unarchiveSession: (id: string) => Promise<SessionInfo | null>
+}
+
+const SETTINGS_SECTIONS: Array<{
+  id: SettingsSectionId
+  labelKey: MessageKey
+  icon: React.ComponentType<{ className?: string }>
+}> = [
+  { id: "general", labelKey: "settings.navGeneral", icon: SlidersHorizontalIcon },
+  { id: "account", labelKey: "settings.navAccount", icon: CircleUserRoundIcon },
+  { id: "archived", labelKey: "archived.navTitle", icon: ArchiveIcon },
+  { id: "browser", labelKey: "settings.groupBrowser", icon: GlobeIcon },
+  { id: "runtime", labelKey: "settings.groupRuntime", icon: ServerIcon },
+  { id: "about", labelKey: "settings.navAbout", icon: InfoIcon },
+  { id: "beta", labelKey: "settings.groupBetaFeatures", icon: FlaskConicalIcon },
 ]
 
-const channelOptions = [
-  { value: "stable", labelKey: "settings.channelStable" },
-  { value: "beta", labelKey: "settings.channelBeta" },
-] as const
-
-const completionNotificationOptions = [
-  { value: "never", labelKey: "settings.notificationNever" },
-  { value: "background", labelKey: "settings.notificationBackground" },
-  { value: "always", labelKey: "settings.notificationAlways" },
-] as const
-
-const copyFeedbackMs = 3000
-
 export function SettingsRoute({
+  archivedSessions,
   linkRuntime,
   onBack,
+  onSectionChange,
+  section,
   titlebarActions,
   update,
 }: {
+  archivedSessions: SettingsArchivedSessionsProps
   onBack: () => void
+  onSectionChange: (section: SettingsSectionId) => void
   linkRuntime: UseLinkRuntime
+  section: SettingsSectionId
   titlebarActions: React.ReactNode
   update: UseAppUpdate
 }) {
-  const { preference, setPreference } = useTheme()
-  const { locale, setLocale, t } = useI18n()
+  const { t } = useI18n()
   const auth = useAuth()
   const appSettings = useAppSettings()
   const attention = useAttention()
-  const showSelfManagedRuntimeSettings = shouldShowSelfManagedRuntimeSettings(auth.state?.status)
+  const showRuntimeSection = shouldShowSelfManagedRuntimeSettings(auth.state?.status)
+
+  const visibleSections = SETTINGS_SECTIONS.filter((item) => item.id !== "runtime" || showRuntimeSection)
+  // 深链目标可能被隐藏（如非自托管模式下的 runtime），回退到「通用」
+  const activeSection = visibleSections.some((item) => item.id === section) ? section : "general"
 
   return (
     <PageRouteShell
       backLabel={t("settings.backToApp")}
-      contentClassName="max-w-[60rem] gap-6"
+      contentClassName="max-w-[72rem] gap-8"
       onBack={onBack}
       titlebarActions={titlebarActions}
     >
       <h1 className="oo-text-page-title">{t("settings.title")}</h1>
 
-      <div className="grid gap-5">
-        {showSelfManagedRuntimeSettings ? (
-          <SelfManagedRuntimeSettings mode={appSettings.settings.operatingMode} runtime={linkRuntime} />
-        ) : null}
+      <div className="grid grid-cols-[11rem_minmax(0,1fr)] items-start gap-8 max-[760px]:grid-cols-1 max-[760px]:gap-5">
+        <nav
+          aria-label={t("settings.title")}
+          className="sticky top-0 grid gap-0.5 max-[760px]:static max-[760px]:flex max-[760px]:gap-1 max-[760px]:overflow-x-auto"
+        >
+          {visibleSections.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              aria-current={activeSection === item.id ? "page" : undefined}
+              onClick={() => onSectionChange(item.id)}
+              className={cn(
+                "oo-text-control flex items-center gap-2 rounded-md px-2.5 py-1.5 text-left whitespace-nowrap",
+                activeSection === item.id ? "bg-accent font-medium text-foreground" : "text-foreground hover:bg-muted",
+              )}
+            >
+              <item.icon className="size-4 shrink-0" />
+              {t(item.labelKey)}
+            </button>
+          ))}
+        </nav>
 
-        <SettingsSection title={t("settings.groupAccount")}>
-          <AccountSettings
-            account={auth.state?.account}
-            error={auth.error}
-            loggingIn={auth.loggingIn}
-            loggingOut={auth.loggingOut}
-            onLogin={() => void auth.login()}
-            onLogout={() => void auth.logout()}
-          />
-          <SettingsItem title={t("settings.appearance")}>
-            <ThemeSettings preference={preference} setPreference={setPreference} />
-          </SettingsItem>
-          <SettingsItem title={t("settings.language")}>
-            <LanguageSettings locale={locale} setLocale={setLocale} />
-          </SettingsItem>
-        </SettingsSection>
-
-        <SettingsSection title={t("settings.groupBrowser")}>
-          <BrowserSettings
-            enabled={appSettings.settings.browserEnabled}
-            loading={appSettings.loading}
-            onEnabledChange={appSettings.setBrowserEnabled}
-          />
-        </SettingsSection>
-
-        <SettingsSection title={t("settings.groupApplication")}>
-          <NotificationSettings
-            capability={attention.notificationCapability}
-            loading={appSettings.loading}
-            settings={appSettings.settings}
-            onConditionChange={appSettings.setCompletionNotificationCondition}
-            onSoundChange={appSettings.setNotificationSoundEnabled}
-            onOpenSystemSettings={attention.openSystemNotificationSettings}
-            onBadgeChange={appSettings.setUnreadBadgeEnabled}
-            onTest={attention.testCompletionNotification}
-          />
-          <AboutSettings update={update} />
-          <SettingsItem title={t("settings.updateChannel")} description={t("settings.channelHint")}>
-            <UpdateChannelSettings update={update} />
-          </SettingsItem>
-        </SettingsSection>
-
-        <SettingsSection title={t("settings.groupBetaFeatures")}>
-          <SettingsItem title={t("settings.knowledgeBeta")} description={t("settings.knowledgeBetaDescription")}>
-            <KnowledgeBetaToggle
-              enabled={appSettings.settings.knowledgeBaseBetaEnabled}
-              loading={appSettings.loading}
-              onChange={appSettings.setKnowledgeBaseBetaEnabled}
+        <div className="min-w-0">
+          {activeSection === "general" ? <GeneralSection appSettings={appSettings} attention={attention} /> : null}
+          {activeSection === "account" ? <AccountSection auth={auth} /> : null}
+          {activeSection === "archived" ? (
+            <ArchivedSessionsPanel
+              listArchived={archivedSessions.listArchived}
+              ready={archivedSessions.ready}
+              refreshSessions={archivedSessions.refreshSessions}
+              removeSession={archivedSessions.removeSession}
+              unarchiveSession={archivedSessions.unarchiveSession}
             />
-          </SettingsItem>
-        </SettingsSection>
+          ) : null}
+          {activeSection === "browser" ? <BrowserSection appSettings={appSettings} /> : null}
+          {activeSection === "runtime" ? (
+            <RuntimeSection mode={appSettings.settings.operatingMode} runtime={linkRuntime} />
+          ) : null}
+          {activeSection === "about" ? <AboutSection update={update} /> : null}
+          {activeSection === "beta" ? <BetaSection appSettings={appSettings} /> : null}
+        </div>
       </div>
     </PageRouteShell>
   )
-}
-
-function BrowserSettings({
-  enabled,
-  loading,
-  onEnabledChange,
-}: {
-  enabled: boolean
-  loading: boolean
-  onEnabledChange: (enabled: boolean) => Promise<void>
-}) {
-  const { t } = useI18n()
-  const browserService = useBrowserService()
-  const [saving, setSaving] = React.useState(false)
-  const [clearDialogOpen, setClearDialogOpen] = React.useState(false)
-  const [clearing, setClearing] = React.useState(false)
-
-  return (
-    <>
-      <SettingsItem title={t("settings.browserEnabled")} description={t("settings.browserEnabledDescription")}>
-        <Switch
-          checked={enabled}
-          disabled={loading || saving}
-          aria-label={t("settings.browserEnabled")}
-          onCheckedChange={(next) => {
-            setSaving(true)
-            void onEnabledChange(next)
-              .catch((error: unknown) => {
-                toast.error(t("settings.browserUpdateFailed"))
-                console.error("[wanta] update browser setting failed", error)
-              })
-              .finally(() => setSaving(false))
-          }}
-        />
-      </SettingsItem>
-      <SettingsItem title={t("settings.browserData")} description={t("settings.browserDataDescription")}>
-        <Button type="button" variant="outline" size="sm" onClick={() => setClearDialogOpen(true)}>
-          {t("settings.browserClearData")}
-        </Button>
-      </SettingsItem>
-      <SettingsItem title={t("settings.browserDownloads")} description={t("settings.browserDownloadsDescription")}>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            void browserService.invoke("openDownloadsFolder").catch((error: unknown) => {
-              toast.error(t("settings.browserOpenDownloadsFailed"))
-              console.error("[wanta] open browser downloads folder failed", error)
-            })
-          }}
-        >
-          {t("settings.browserOpenDownloads")}
-        </Button>
-      </SettingsItem>
-      <ConfirmDialog
-        open={clearDialogOpen}
-        onOpenChange={(open) => {
-          if (!clearing) setClearDialogOpen(open)
-        }}
-      >
-        <ConfirmDialogContent>
-          <ConfirmDialogHeader>
-            <ConfirmDialogTitle>{t("settings.browserClearConfirmTitle")}</ConfirmDialogTitle>
-            <ConfirmDialogDescription>{t("settings.browserClearConfirmDescription")}</ConfirmDialogDescription>
-          </ConfirmDialogHeader>
-          <ConfirmDialogFooter>
-            <ConfirmDialogCancel disabled={clearing}>{t("settings.browserClearCancel")}</ConfirmDialogCancel>
-            <ConfirmDialogAction
-              disabled={clearing}
-              onClick={(event) => {
-                event.preventDefault()
-                setClearing(true)
-                void browserService
-                  .invoke("clearData")
-                  .then(() => {
-                    toast.success(t("settings.browserClearSuccess"))
-                    setClearDialogOpen(false)
-                  })
-                  .catch((error: unknown) => {
-                    toast.error(t("settings.browserClearFailed"))
-                    console.error("[wanta] clear browser data failed", error)
-                  })
-                  .finally(() => setClearing(false))
-              }}
-            >
-              {clearing ? <RefreshCwIcon className="size-4 animate-spin" /> : null}
-              {t("settings.browserClearConfirmAction")}
-            </ConfirmDialogAction>
-          </ConfirmDialogFooter>
-        </ConfirmDialogContent>
-      </ConfirmDialog>
-    </>
-  )
-}
-
-function SelfManagedRuntimeSettings({ mode, runtime }: { mode: OperatingMode | null; runtime: UseLinkRuntime }) {
-  const { t } = useI18n()
-  const models = useModelCatalog()
-
-  return (
-    <SettingsSection title={t("settings.groupRuntime")}>
-      <RuntimeProfileSummary mode={mode} />
-      <ModelSettings connectorsEnabled={false} models={models} />
-      <LinkRuntimeSettings runtime={runtime} />
-    </SettingsSection>
-  )
-}
-
-function RuntimeProfileSummary({ mode }: { mode: OperatingMode | null }) {
-  const { t } = useI18n()
-  const description =
-    mode === "self-managed"
-      ? t("settings.runtimeProfileSelfDescription")
-      : t("settings.runtimeProfileUnselectedDescription")
-  const label =
-    mode === "self-managed" ? t("settings.runtimeProfileSelfManaged") : t("settings.runtimeProfileUnselected")
-  return (
-    <SettingsItem title={t("settings.runtimeProfile")} description={description}>
-      <span className="oo-text-caption rounded-full border bg-background px-2.5 py-1 font-medium text-foreground">
-        {label}
-      </span>
-    </SettingsItem>
-  )
-}
-
-function ModelSettings({
-  connectorsEnabled,
-  models,
-}: {
-  connectorsEnabled: boolean
-  models: ReturnType<typeof useModelCatalog>
-}) {
-  const { t } = useI18n()
-  const [editingModel, setEditingModel] = React.useState<CustomModelSummary | undefined>()
-  const catalog = models.catalog
-  const selectedCustomId = catalog?.selected.kind === "custom" ? catalog.selected.id : null
-  const selectedBuiltinId = catalog?.selected.kind === "builtin" ? catalog.selected.id : null
-  const selectedModel =
-    catalog?.selected.kind === "custom"
-      ? catalog.customModels.find((item) => item.id === catalog.selected.id)?.displayName
-      : connectorsEnabled
-        ? catalog?.builtins.find((item) => item.id === catalog.selected.id)?.displayName
-        : undefined
-
-  const openAdd = () => {
-    setEditingModel(undefined)
-    models.openDialog()
-  }
-  const openEdit = (model: CustomModelSummary) => {
-    setEditingModel(model)
-    models.openDialog()
-  }
-  const closeDialog = () => {
-    setEditingModel(undefined)
-    models.closeDialog()
-  }
-
-  return (
-    <section className="grid gap-4 border-b border-[var(--oo-divider)] px-3 py-4 last:border-b-0">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-3">
-          <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted">
-            <BrainCircuitIcon className="size-4" />
-          </div>
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="oo-text-label text-foreground">{t("settings.modelsTitle")}</h3>
-              <span className="oo-text-caption rounded-full border px-2 py-0.5">{t("settings.required")}</span>
-            </div>
-            <p className="oo-text-caption mt-0.5">
-              {selectedModel
-                ? t("settings.modelsCurrent", { model: selectedModel })
-                : t("settings.modelsNotConfigured")}
-            </p>
-          </div>
-        </div>
-        <Button type="button" size="sm" onClick={openAdd}>
-          <PlusIcon className="size-4" />
-          {t("settings.modelsAdd")}
-        </Button>
-      </div>
-
-      {catalog ? (
-        <div className="grid gap-2">
-          {connectorsEnabled && catalog.builtins.length > 0 ? (
-            <div className="grid gap-1.5">
-              <p className="oo-text-caption-compact font-medium text-muted-foreground">{t("settings.modelsOomol")}</p>
-              {catalog.builtins.map((model) => (
-                <ModelRow
-                  key={model.id}
-                  active={selectedBuiltinId === model.id}
-                  description={model.providerName}
-                  name={model.displayName}
-                  onSelect={() => models.selectModel({ kind: "builtin", id: model.id })}
-                />
-              ))}
-            </div>
-          ) : null}
-
-          <div className="grid gap-1.5">
-            <p className="oo-text-caption-compact font-medium text-muted-foreground">{t("settings.modelsCustom")}</p>
-            {catalog.customModels.length > 0 ? (
-              catalog.customModels.map((model) => (
-                <ModelRow
-                  key={model.id}
-                  active={selectedCustomId === model.id}
-                  description={`${model.providerName} · ${model.modelName}`}
-                  name={model.displayName}
-                  onEdit={() => openEdit(model)}
-                  onDelete={() => {
-                    if (globalThis.confirm(t("settings.modelsDeleteConfirm", { model: model.displayName }))) {
-                      models.deleteModel(model.id)
-                    }
-                  }}
-                  onSelect={() => models.selectModel({ kind: "custom", id: model.id })}
-                />
-              ))
-            ) : (
-              <div className="rounded-lg border border-dashed px-3 py-4 text-center">
-                <p className="oo-text-caption">{t("settings.modelsEmpty")}</p>
-              </div>
-            )}
-          </div>
-        </div>
-      ) : null}
-
-      {models.catalogError ? <ErrorNotice error={models.catalogError} compact /> : null}
-      {models.selectionError ? <ErrorNotice error={models.selectionError} compact /> : null}
-      <AddCustomModelDialog
-        connectorsEnabled={connectorsEnabled}
-        model={editingModel}
-        open={models.dialogOpen}
-        providers={catalog?.providers ?? []}
-        error={models.dialogError}
-        onClose={closeDialog}
-        onSave={models.saveModel}
-      />
-    </section>
-  )
-}
-
-function ModelRow({
-  active,
-  description,
-  name,
-  onDelete,
-  onEdit,
-  onSelect,
-}: {
-  active: boolean
-  description: string
-  name: string
-  onDelete?: () => void
-  onEdit?: () => void
-  onSelect: () => void
-}) {
-  const { t } = useI18n()
-  return (
-    <div
-      className={cn(
-        "flex min-w-0 items-center gap-2 rounded-lg border px-3 py-2",
-        active && "border-primary/40 bg-primary/[0.035]",
-      )}
-    >
-      <button type="button" className="min-w-0 flex-1 text-left" onClick={onSelect}>
-        <span className="flex items-center gap-2">
-          <span className={cn("size-2 rounded-full border", active && "border-primary bg-primary")} />
-          <span className="oo-text-label truncate">{name}</span>
-        </span>
-        <span className="oo-text-caption ml-4 block truncate">{description}</span>
-      </button>
-      {onEdit ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="size-8"
-          title={t("settings.modelsEdit")}
-          onClick={onEdit}
-        >
-          <PencilIcon className="size-4" />
-        </Button>
-      ) : null}
-      {onDelete ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="size-8"
-          title={t("settings.modelsDelete")}
-          onClick={onDelete}
-        >
-          <Trash2Icon className="size-4" />
-        </Button>
-      ) : null}
-    </div>
-  )
-}
-
-function LinkRuntimeSettings({ runtime }: { runtime: UseLinkRuntime }) {
-  const { t } = useI18n()
-  const [baseUrl, setBaseUrl] = React.useState("")
-  const [consoleUrl, setConsoleUrl] = React.useState("")
-  const [deploymentMode, setDeploymentMode] = React.useState(() => inferOpenConnectorDeploymentMode(undefined))
-  const [runtimeToken, setRuntimeToken] = React.useState("")
-  const state = runtime.state
-  const saved = state?.openConnector
-
-  React.useEffect(() => {
-    setBaseUrl(saved?.baseUrl ?? "")
-    setConsoleUrl(saved?.consoleUrl ?? "")
-    setDeploymentMode(inferOpenConnectorDeploymentMode(saved))
-  }, [saved?.baseUrl, saved?.consoleUrl])
-
-  const endpointConfigurationComplete = hasCompleteOpenConnectorEndpoints(deploymentMode, baseUrl, consoleUrl)
-  const changeDeploymentMode = (nextMode: typeof deploymentMode) => {
-    setDeploymentMode(nextMode)
-    if (nextMode === "local" && consoleUrl.trim() === baseUrl.trim()) setConsoleUrl("")
-  }
-
-  const reportFailure = React.useCallback(
-    (cause: unknown) => {
-      toast.error(t("settings.linkRuntimeActionFailed"))
-      console.error("[wanta] Link runtime action failed", cause)
-    },
-    [t],
-  )
-  const save = () => {
-    const token = runtimeToken.trim()
-    void runtime
-      .saveOpenConnector({
-        baseUrl,
-        consoleUrl: resolveOpenConnectorConsoleUrl(deploymentMode, baseUrl, consoleUrl),
-        ...(token ? { runtimeToken: token } : {}),
-      })
-      .then(() => {
-        setRuntimeToken("")
-        toast.success(t("settings.linkRuntimeSaved"))
-      })
-      .catch(reportFailure)
-  }
-  const test = () => {
-    const token = runtimeToken.trim()
-    void runtime
-      .testOpenConnector({ baseUrl, ...(token ? { runtimeToken: token } : {}) })
-      .then((result) => {
-        if (result.kind === "online") toast.success(t("settings.linkRuntimeTestOnline"))
-        else if (result.kind === "unauthorized") toast.error(t("settings.linkRuntimeTestUnauthorized"))
-        else if (result.kind === "offline") toast.error(t("settings.linkRuntimeTestOffline"))
-        else toast.error(t("settings.linkRuntimeTestIncompatible"))
-      })
-      .catch(reportFailure)
-  }
-
-  return (
-    <>
-      <SettingsItem title={t("settings.connectionsTitle")} description={t("settings.connectionsDescription")}>
-        <span className="oo-text-caption rounded-full border px-2.5 py-1">
-          {state?.active === "oomol"
-            ? "Wanta"
-            : state?.active === "openconnector"
-              ? "OpenConnector"
-              : t("settings.connectionsModelOnly")}
-        </span>
-      </SettingsItem>
-
-      <section className="grid gap-4 border-b border-[var(--oo-divider)] px-3 py-4 last:border-b-0">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <ServerIcon className="size-4 text-muted-foreground" />
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h3 className="oo-text-label text-foreground">{t("settings.openConnectorTitle")}</h3>
-                <span className="oo-text-caption-compact rounded-full border px-2 py-0.5">
-                  {t("settings.optional")}
-                </span>
-              </div>
-              <p className="oo-text-caption">
-                {t(
-                  runtime.loading || runtime.busy
-                    ? "settings.linkRuntimeStatusChecking"
-                    : linkRuntimeStatusKey(runtime.status.kind),
-                )}
-              </p>
-            </div>
-          </div>
-          <span className="oo-text-caption rounded-full border px-2 py-0.5">
-            {!saved
-              ? t("settings.openConnectorNotConfigured")
-              : state?.active === "openconnector"
-                ? t("settings.linkRuntimeInUse")
-                : state?.selected === "openconnector"
-                  ? t("settings.linkRuntimeUnavailable")
-                  : t("settings.linkRuntimeNotSelected")}
-          </span>
-        </div>
-
-        <OpenConnectorEndpointFields
-          baseUrl={baseUrl}
-          consoleUrl={consoleUrl}
-          disabled={runtime.busy}
-          mode={deploymentMode}
-          onBaseUrlChange={setBaseUrl}
-          onConsoleUrlChange={setConsoleUrl}
-          onModeChange={changeDeploymentMode}
-        />
-
-        <label className="grid gap-1.5">
-          <span className="oo-text-label flex items-center gap-1.5">
-            <KeyRoundIcon className="size-3.5" />
-            {t("settings.openConnectorRuntimeToken")}
-          </span>
-          <Input
-            type="password"
-            autoComplete="off"
-            value={runtimeToken}
-            placeholder={
-              saved?.tokenConfigured
-                ? t("settings.openConnectorTokenConfigured")
-                : t("settings.openConnectorTokenOptional")
-            }
-            disabled={runtime.busy}
-            onChange={(event) => setRuntimeToken(event.target.value)}
-          />
-        </label>
-
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" size="sm" disabled={runtime.busy || !baseUrl.trim()} onClick={test}>
-            {t("settings.openConnectorTest")}
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={runtime.busy || !endpointConfigurationComplete}
-            onClick={save}
-          >
-            {t("common.save")}
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={runtime.busy || !saved?.consoleUrl}
-            onClick={() => {
-              if (saved?.consoleUrl) window.open(saved.consoleUrl, "_blank", "noopener,noreferrer")
-            }}
-          >
-            <ExternalLinkIcon className="size-4" />
-            {t("settings.openConnectorOpenConsole")}
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={runtime.busy || !saved?.tokenConfigured}
-            onClick={() => {
-              if (!globalThis.confirm(t("settings.openConnectorClearTokenConfirm"))) return
-              setRuntimeToken("")
-              void runtime.clearOpenConnectorToken().catch(reportFailure)
-            }}
-          >
-            {t("settings.openConnectorClearToken")}
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            disabled={runtime.busy || !saved}
-            onClick={() => {
-              if (!globalThis.confirm(t("settings.openConnectorRemoveConfirm"))) return
-              void runtime.removeOpenConnector().catch(reportFailure)
-            }}
-          >
-            <Trash2Icon className="size-4" />
-            {t("settings.openConnectorRemove")}
-          </Button>
-        </div>
-      </section>
-    </>
-  )
-}
-
-function linkRuntimeStatusKey(kind: UseLinkRuntime["status"]["kind"]): MessageKey {
-  switch (kind) {
-    case "online":
-      return "settings.linkRuntimeStatusOnline"
-    case "offline":
-      return "settings.linkRuntimeStatusOffline"
-    case "unauthorized":
-      return "settings.linkRuntimeStatusUnauthorized"
-    case "incompatible":
-      return "settings.linkRuntimeStatusIncompatible"
-    case "unknown":
-      return "settings.linkRuntimeStatusUnknown"
-  }
-}
-
-function NotificationSettings({
-  capability,
-  loading,
-  onBadgeChange,
-  onConditionChange,
-  onOpenSystemSettings,
-  onSoundChange,
-  onTest,
-  settings,
-}: {
-  capability: NotificationCapability | null
-  loading: boolean
-  onBadgeChange: (enabled: boolean) => Promise<void>
-  onConditionChange: (condition: CompletionNotificationCondition) => Promise<void>
-  onOpenSystemSettings: () => Promise<void>
-  onSoundChange: (enabled: boolean) => Promise<void>
-  onTest: () => Promise<NotificationTestResult>
-  settings: ReturnType<typeof useAppSettings>["settings"]
-}) {
-  const { t } = useI18n()
-  const [saving, setSaving] = React.useState(false)
-  const [testing, setTesting] = React.useState(false)
-  const [lastTestResult, setLastTestResult] = React.useState<NotificationTestResult | null>(null)
-  const disabled = loading || saving || testing
-  const testDisabled =
-    disabled || !capability || capability.status === "unsupported" || capability.status === "development-unavailable"
-  const presentation = notificationPresentation(capability, lastTestResult)
-
-  const save = React.useCallback(
-    (task: Promise<void>) => {
-      setSaving(true)
-      void task
-        .catch((error: unknown) => {
-          toast.error(t("settings.notificationsUpdateFailed"))
-          console.error("[wanta] update notification setting failed", error)
-        })
-        .finally(() => setSaving(false))
-    },
-    [t],
-  )
-
-  return (
-    <>
-      <SettingsItem title={t("settings.notificationSystemStatus")} description={t(presentation.descriptionKey)}>
-        <div className="flex flex-wrap justify-end gap-2 max-[760px]:justify-start">
-          {presentation.recovery && capability?.canOpenSystemSettings ? (
-            <SystemNotificationSettingsButton
-              disabled={disabled}
-              labelKey={presentation.settingsLabelKey}
-              onOpen={onOpenSystemSettings}
-            />
-          ) : null}
-          <Button
-            type="button"
-            variant={presentation.recovery ? "outline" : "default"}
-            size="sm"
-            disabled={testDisabled}
-            onClick={() => {
-              setTesting(true)
-              void onTest()
-                .then((result) => {
-                  setLastTestResult(result)
-                  switch (result.outcome) {
-                    case "delivered":
-                      toast.success(t("settings.notificationTestDelivered"))
-                      return
-                    case "accepted":
-                      if (capability?.platform === "darwin") {
-                        toast.warning(t("settings.notificationTestUnconfirmed"))
-                      } else {
-                        toast.success(t("settings.notificationTestAccepted"))
-                      }
-                      return
-                  }
-                  toast.error(t(notificationTestFailureKey(result)))
-                  console.error("[wanta] test notification was not delivered", result)
-                })
-                .catch((error: unknown) => {
-                  setLastTestResult({
-                    error: error instanceof Error ? error.message : String(error),
-                    outcome: "failed",
-                  })
-                  toast.error(t("settings.notificationTestFailed"))
-                  console.error("[wanta] test notification failed", error)
-                })
-                .finally(() => setTesting(false))
-            }}
-          >
-            <BellRingIcon className="size-4" />
-            {t(presentation.testLabelKey)}
-          </Button>
-          {!presentation.recovery && capability?.canOpenSystemSettings ? (
-            <SystemNotificationSettingsButton
-              disabled={disabled}
-              labelKey={presentation.settingsLabelKey}
-              onOpen={onOpenSystemSettings}
-            />
-          ) : null}
-        </div>
-      </SettingsItem>
-      <SettingsItem title={t("settings.notifications")} description={t("settings.notificationsDescription")}>
-        <ToggleGroup
-          type="single"
-          value={settings.completionNotificationCondition}
-          onValueChange={(value) => {
-            if (value) save(onConditionChange(value as CompletionNotificationCondition))
-          }}
-          variant="outline"
-          size="sm"
-          disabled={disabled}
-          className="flex-wrap justify-end max-[760px]:grid max-[760px]:w-full max-[760px]:grid-cols-3"
-        >
-          {completionNotificationOptions.map((option) => (
-            <ToggleGroupItem key={option.value} value={option.value} className="max-[760px]:w-full">
-              {t(option.labelKey)}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
-      </SettingsItem>
-      <SettingsItem title={t("settings.notificationSound")} description={t("settings.notificationSoundDescription")}>
-        <Switch
-          checked={settings.notificationSoundEnabled}
-          disabled={disabled}
-          aria-label={t("settings.notificationSound")}
-          onCheckedChange={(enabled) => save(onSoundChange(enabled))}
-        />
-      </SettingsItem>
-      <SettingsItem title={t("settings.notificationBadge")} description={t("settings.notificationBadgeDescription")}>
-        <Switch
-          checked={settings.unreadBadgeEnabled}
-          disabled={disabled}
-          aria-label={t("settings.notificationBadge")}
-          onCheckedChange={(enabled) => save(onBadgeChange(enabled))}
-        />
-      </SettingsItem>
-    </>
-  )
-}
-
-function SystemNotificationSettingsButton({
-  disabled,
-  labelKey,
-  onOpen,
-}: {
-  disabled: boolean
-  labelKey: MessageKey
-  onOpen: () => Promise<void>
-}) {
-  const { t } = useI18n()
-  return (
-    <Button
-      type="button"
-      variant="outline"
-      size="sm"
-      disabled={disabled}
-      onClick={() => {
-        void onOpen().catch((error: unknown) => {
-          toast.error(t("settings.notificationSettingsOpenFailed"))
-          console.error("[wanta] open system notification settings failed", error)
-        })
-      }}
-    >
-      {t(labelKey)}
-    </Button>
-  )
-}
-
-function notificationTestFailureKey(
-  result: NotificationTestResult,
-): "settings.notificationTestFailed" | "settings.notificationTestTimedOut" | "settings.notificationUnsupported" {
-  switch (result.outcome) {
-    case "timed-out":
-      return "settings.notificationTestTimedOut"
-    case "unsupported":
-      return "settings.notificationUnsupported"
-    default:
-      return "settings.notificationTestFailed"
-  }
-}
-
-function KnowledgeBetaToggle({
-  enabled,
-  loading,
-  onChange,
-}: {
-  enabled: boolean
-  loading: boolean
-  onChange: (enabled: boolean) => Promise<void>
-}) {
-  const { t } = useI18n()
-  const [saving, setSaving] = React.useState(false)
-  const disabled = loading || saving
-
-  return (
-    <Switch
-      checked={enabled}
-      disabled={disabled}
-      aria-label={t("settings.knowledgeBeta")}
-      onCheckedChange={(next) => {
-        setSaving(true)
-        void onChange(next)
-          .catch((error: unknown) => {
-            toast.error(t("settings.knowledgeBetaUpdateFailed"))
-            console.error("[wanta] update knowledge beta setting failed", error)
-          })
-          .finally(() => setSaving(false))
-      }}
-    />
-  )
-}
-
-function SettingsSection({ children, title }: { children: React.ReactNode; title: string }) {
-  return (
-    <section className="grid gap-2">
-      <SectionHeading>{title}</SectionHeading>
-      <div className="overflow-hidden rounded-md border border-[var(--oo-divider)] bg-background">{children}</div>
-    </section>
-  )
-}
-
-function SettingsItem({
-  children,
-  description,
-  title,
-}: {
-  children: React.ReactNode
-  description?: React.ReactNode
-  title: string
-}) {
-  return (
-    <section className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 border-b border-[var(--oo-divider)] px-3 py-2.5 last:border-b-0 max-[760px]:grid-cols-1">
-      <div className="min-w-0">
-        <h3 className="oo-text-label truncate text-foreground">{title}</h3>
-        {description ? <div className="oo-text-caption mt-0.5 max-w-[44rem]">{description}</div> : null}
-      </div>
-      <div className="min-w-0 justify-self-end max-[760px]:w-full max-[760px]:justify-self-stretch">{children}</div>
-    </section>
-  )
-}
-
-function AccountSettings({
-  account,
-  error,
-  loggingIn,
-  loggingOut,
-  onLogin,
-  onLogout,
-}: {
-  account?: AuthAccountSummary
-  error?: UserFacingError | null
-  loggingIn: boolean
-  loggingOut: boolean
-  onLogin: () => void
-  onLogout: () => void
-}) {
-  const { t } = useI18n()
-  const accountCopy = useClipboardCopy()
-  const displayName = account?.name.trim() || t("settings.account")
-  const AccountCopyIcon = accountCopy.copied ? CheckIcon : CopyIcon
-
-  return (
-    <>
-      <section className="grid min-h-16 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-3 border-b border-[var(--oo-divider)] px-3 py-3 max-[760px]:grid-cols-1">
-        <div className="flex min-w-0 items-center gap-3">
-          <AccountAvatar name={displayName} avatarUrl={account?.avatarUrl} />
-          <div className="min-w-0">
-            <div className="oo-text-title truncate text-foreground">{displayName}</div>
-            <div className="oo-text-caption truncate">{account ? t("settings.signedIn") : t("settings.signedOut")}</div>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center justify-end gap-2 max-[760px]:justify-start">
-          {account ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={cn(accountCopy.copied && "bg-accent text-foreground hover:bg-accent hover:text-foreground")}
-              onClick={() => void accountCopy.copyText(formatAccountInfo(account, t))}
-            >
-              <AccountCopyIcon className="size-4" />
-              {accountCopy.copied ? t("settings.copied") : t("settings.copyAccountInfo")}
-            </Button>
-          ) : null}
-          {account ? (
-            <Button type="button" variant="outline" size="sm" disabled={loggingOut} onClick={onLogout}>
-              <LogOutIcon className="size-4" />
-              {t("settings.logout")}
-            </Button>
-          ) : (
-            <Button type="button" size="sm" disabled={loggingIn} onClick={onLogin}>
-              <LogInIcon className="size-4" />
-              {loggingIn ? t("login.waiting") : t("login.button")}
-            </Button>
-          )}
-        </div>
-      </section>
-
-      {account ? <AccountField label={t("settings.userId")} value={account.id} /> : null}
-
-      {error ? <ErrorNotice error={error} compact className="m-3" /> : null}
-    </>
-  )
-}
-
-function AccountField({ label, value }: { label: string; value: string }) {
-  const { t } = useI18n()
-  const fieldCopy = useClipboardCopy()
-  const FieldCopyIcon = fieldCopy.copied ? CheckIcon : CopyIcon
-
-  return (
-    <div className="grid min-h-12 grid-cols-[minmax(8rem,0.35fr)_minmax(0,1fr)_auto] items-center gap-3 border-b border-[var(--oo-divider)] px-3 py-2.5 max-[760px]:grid-cols-[minmax(0,1fr)_auto]">
-      <div className="oo-text-label text-muted-foreground max-[760px]:col-span-2">{label}</div>
-      <div className="oo-text-control min-w-0 truncate font-mono text-foreground">{value}</div>
-      <button
-        type="button"
-        onClick={() => void fieldCopy.copyText(value)}
-        className={cn(
-          "grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground",
-          fieldCopy.copied && "bg-accent text-foreground hover:bg-accent hover:text-foreground",
-        )}
-        aria-label={fieldCopy.copied ? t("settings.copied") : t("settings.copyField", { field: label })}
-        title={fieldCopy.copied ? t("settings.copied") : t("settings.copyField", { field: label })}
-      >
-        <FieldCopyIcon className="size-4" />
-      </button>
-    </div>
-  )
-}
-
-function ThemeSettings({
-  preference,
-  setPreference,
-}: {
-  preference: ThemePreference
-  setPreference: (preference: ThemePreference) => void
-}) {
-  const { t } = useI18n()
-  return (
-    <ToggleGroup
-      type="single"
-      value={preference}
-      onValueChange={(value) => {
-        if (value) {
-          setPreference(value as ThemePreference)
-        }
-      }}
-      variant="outline"
-      size="sm"
-      className="flex-wrap"
-    >
-      {themeOptions.map((option) => (
-        <ToggleGroupItem key={option.value} value={option.value}>
-          <option.icon className="size-4" />
-          {t(option.labelKey)}
-        </ToggleGroupItem>
-      ))}
-    </ToggleGroup>
-  )
-}
-
-function LanguageSettings({ locale, setLocale }: { locale: Locale; setLocale: (locale: Locale) => void }) {
-  return (
-    <ToggleGroup
-      type="single"
-      value={locale}
-      onValueChange={(value) => {
-        if (value) {
-          setLocale(value as Locale)
-        }
-      }}
-      variant="outline"
-      size="sm"
-      className="flex-wrap"
-    >
-      {localeOptions.map((option) => (
-        <ToggleGroupItem key={option.value} value={option.value}>
-          {option.label}
-        </ToggleGroupItem>
-      ))}
-    </ToggleGroup>
-  )
-}
-
-function AboutSettings({ update }: { update: UseAppUpdate }) {
-  const { t } = useI18n()
-  const statusText = getUpdateStatusText(update, t)
-  const updateStatus = update.state?.status
-  const downloadingStatus = updateStatus?.status === "downloading" ? updateStatus : null
-  const updateError =
-    updateStatus?.status === "error" ? resolveUserFacingError(updateStatus.error, { area: "update" }) : null
-  const percent = Math.round(downloadingStatus?.percent ?? 0)
-  const version = update.state?.currentVersion ?? globalThis.wanta?.version ?? "—"
-  const platform = globalThis.wanta?.platform ?? "browser"
-
-  return (
-    <section className="grid min-h-16 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-3 border-b border-[var(--oo-divider)] px-3 py-3 max-[760px]:grid-cols-1">
-      <div className="grid min-w-0 gap-1">
-        <div className="oo-text-label text-muted-foreground">{branding.appName}</div>
-        <div className="oo-text-value text-foreground">v{version}</div>
-        <div className="oo-text-caption">{t("settings.platform", { platform })}</div>
-        {updateError ? null : <div className="oo-text-caption">{statusText}</div>}
-        {updateError ? <ErrorNotice error={updateError} compact className="mt-2 max-w-xl" /> : null}
-        {downloadingStatus ? <Progress value={percent} className="mt-3 h-1.5 max-w-sm" /> : null}
-      </div>
-      <UpdateAction update={update} />
-    </section>
-  )
-}
-
-function UpdateChannelSettings({ update }: { update: UseAppUpdate }) {
-  const { t } = useI18n()
-  return (
-    <div className="grid max-w-[48rem] gap-3">
-      <ToggleGroup
-        type="single"
-        value={update.state?.channel ?? "stable"}
-        onValueChange={(value) => {
-          if (value) {
-            void update.setChannel(value as UpdateChannel)
-          }
-        }}
-        variant="outline"
-        size="sm"
-        className="flex-wrap"
-      >
-        {channelOptions.map((option) => (
-          <ToggleGroupItem key={option.value} value={option.value}>
-            {t(option.labelKey)}
-          </ToggleGroupItem>
-        ))}
-      </ToggleGroup>
-    </div>
-  )
-}
-
-function UpdateAction({ update }: { update: UseAppUpdate }) {
-  const { t } = useI18n()
-  const state = update.state
-  if (!state || !state.isPackaged) {
-    return null
-  }
-  switch (state.status.status) {
-    case "checking":
-      return (
-        <Button variant="outline" size="sm" disabled>
-          <RefreshCwIcon className="size-4 animate-spin" />
-          {t("settings.updateChecking")}
-        </Button>
-      )
-    case "available":
-      return (
-        <Button variant="outline" size="sm" onClick={() => void update.download()}>
-          <DownloadIcon className="size-4" />
-          {t("settings.updateDownload")}
-        </Button>
-      )
-    case "downloading":
-      return (
-        <Button variant="outline" size="sm" disabled>
-          <DownloadIcon className="size-4" />
-          {t("settings.updateDownloading", { percent: Math.round(state.status.percent ?? 0) })}
-        </Button>
-      )
-    case "downloaded":
-      return (
-        <Button variant="outline" size="sm" onClick={() => void update.install()}>
-          <RotateCcwIcon className="size-4" />
-          {t("settings.updateRestart")}
-        </Button>
-      )
-    default:
-      return (
-        <Button variant="outline" size="sm" onClick={() => void update.checkAndDownload()}>
-          <RefreshCwIcon className="size-4" />
-          {t("settings.updateCheck")}
-        </Button>
-      )
-  }
-}
-
-function getUpdateStatusText(update: UseAppUpdate, t: ReturnType<typeof useI18n>["t"]): string {
-  const state = update.state
-  if (!state) {
-    return " "
-  }
-  if (!state.isPackaged) {
-    return t("settings.updateDevUnavailable")
-  }
-  switch (state.status.status) {
-    case "checking":
-      return t("settings.updateChecking")
-    case "not-available":
-      return t("settings.updateUpToDate")
-    case "available":
-      return t(state.channel === "beta" ? "settings.updateAvailableOnBeta" : "settings.updateAvailable", {
-        version: state.status.version,
-      })
-    case "downloaded":
-      return t("settings.updateDownloaded", { version: state.status.version })
-    case "downloading":
-      return t("settings.updateDownloading", { percent: Math.round(state.status.percent ?? 0) })
-    case "error":
-      return t("error.update.title")
-    default:
-      return t("settings.updateIdle")
-  }
-}
-
-function AccountAvatar({ name, avatarUrl }: { name: string; avatarUrl?: string }) {
-  return (
-    <div className="relative flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-sm font-semibold text-foreground">
-      <span aria-hidden="true">{name.trim().charAt(0).toLocaleUpperCase() || "L"}</span>
-      <CachedAvatarImage src={avatarUrl} alt="" className="absolute inset-0 size-full object-cover" />
-    </div>
-  )
-}
-
-function useClipboardCopy(): { copied: boolean; copyText: (text: string) => Promise<boolean> } {
-  const { t } = useI18n()
-  const [copied, setCopied] = React.useState(false)
-  const timeoutRef = React.useRef<number | undefined>(undefined)
-
-  React.useEffect(
-    () => () => {
-      if (timeoutRef.current !== undefined) {
-        window.clearTimeout(timeoutRef.current)
-      }
-    },
-    [],
-  )
-
-  const copyText = React.useCallback(
-    async (text: string): Promise<boolean> => {
-      const didCopy = await writeClipboardText(text)
-      if (!didCopy) {
-        setCopied(false)
-        toast.error(t("settings.copyFailed"))
-        return false
-      }
-
-      setCopied(true)
-      if (timeoutRef.current !== undefined) {
-        window.clearTimeout(timeoutRef.current)
-      }
-      timeoutRef.current = window.setTimeout(() => setCopied(false), copyFeedbackMs)
-      return true
-    },
-    [t],
-  )
-
-  return { copied, copyText }
-}
-
-async function writeClipboardText(text: string): Promise<boolean> {
-  if (navigator.clipboard?.writeText) {
-    try {
-      await navigator.clipboard.writeText(text)
-      return true
-    } catch {
-      // 继续走 DOM fallback。
-    }
-  }
-
-  const textarea = document.createElement("textarea")
-  textarea.value = text
-  textarea.setAttribute("readonly", "")
-  textarea.style.position = "fixed"
-  textarea.style.top = "-9999px"
-  textarea.style.left = "-9999px"
-  document.body.append(textarea)
-  textarea.select()
-  try {
-    return document.execCommand("copy")
-  } finally {
-    textarea.remove()
-  }
-}
-
-function formatAccountInfo(account: AuthAccountSummary, t: ReturnType<typeof useI18n>["t"]): string {
-  const wanta = globalThis.wanta
-  const version = wanta?.version ?? "unknown"
-  const platform = wanta?.platform ?? "browser"
-  const appCommit = wanta?.appCommit ?? "unknown"
-  const lines = [
-    t("settings.accountDiagnosticsTitle"),
-    `${t("settings.accountName")}: ${account.name}`,
-    `${t("settings.userId")}: ${account.id}`,
-    `${t("settings.appVersion")}: ${version}`,
-    `${t("settings.appCommit")}: ${appCommit}`,
-    `${t("settings.platformName")}: ${platform}`,
-  ]
-  return lines.join("\n")
 }

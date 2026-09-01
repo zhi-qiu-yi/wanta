@@ -6,6 +6,7 @@ import type { SidebarSegment, SidebarTaskSortMode } from "./sidebar-persistence.
 import type { SidebarSessionGroups } from "./sidebar-sessions.ts"
 import type { UseTeamWorkspace } from "@/hooks/useTeamWorkspace"
 import type { UserFacingError } from "@/lib/user-facing-error"
+import type { SettingsSectionId } from "@/routes/Settings"
 
 import {
   Archive,
@@ -124,7 +125,7 @@ export const AppShellNavigationSidebar = React.memo(function AppShellNavigationS
   onLogout: () => void
   onLogin: () => void
   onManageTasks: () => void
-  onNavigate: (route: Route) => void
+  onNavigate: (route: Route, options?: { settingsSection?: SettingsSectionId }) => void
   onNewSession: () => void
   onOpenConnections: () => void
   onOpenSearch: () => void
@@ -240,7 +241,7 @@ export const AppShellNavigationSidebar = React.memo(function AppShellNavigationS
               <ListChecks className="size-4" />
               {t("tasks.organize")}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => onNavigate("archived")}>
+            <DropdownMenuItem onSelect={() => onNavigate("settings", { settingsSection: "archived" })}>
               <Archive className="size-4" />
               {t("tasks.viewArchived")}
             </DropdownMenuItem>

@@ -17,7 +17,7 @@ import * as React from "react"
 import { toast } from "sonner"
 import { visibleArchivedSessions } from "./archived-route-model.ts"
 import { ErrorNotice } from "@/components/ErrorNotice"
-import { PageRouteShell } from "@/components/PageRouteShell"
+import { SectionHeading } from "@/components/SectionHeading"
 import { Button } from "@/components/ui/button"
 import {
   ConfirmDialog,
@@ -38,13 +38,11 @@ import { reportRendererHandledError } from "@/lib/renderer-diagnostics"
 import { resolveUserFacingError, userFacingErrorDescription } from "@/lib/user-facing-error"
 import { cn } from "@/lib/utils"
 
-interface ArchivedRouteProps {
+interface ArchivedSessionsPanelProps {
   listArchived: () => Promise<SessionInfo[]>
-  onBack: () => void
   refreshSessions: () => Promise<void>
   removeSession: (id: string) => Promise<void>
   ready: boolean
-  titlebarActions: React.ReactNode
   unarchiveSession: (id: string) => Promise<SessionInfo | null>
 }
 
@@ -58,15 +56,14 @@ const sortOptions = [
   value: ArchivedSortMode
 }>
 
-export function ArchivedRoute({
+// 已归档会话列表面板：作为设置页「已归档」分区的内容渲染，不含独立路由外壳
+export function ArchivedSessionsPanel({
   listArchived,
-  onBack,
   refreshSessions,
   removeSession,
   ready,
-  titlebarActions,
   unarchiveSession,
-}: ArchivedRouteProps) {
+}: ArchivedSessionsPanelProps) {
   const { locale, t } = useI18n()
   const [sessions, setSessions] = React.useState<SessionInfo[]>([])
   const [query, setQuery] = React.useState("")
@@ -190,19 +187,15 @@ export function ArchivedRoute({
   }
 
   return (
-    <PageRouteShell
-      backLabel={t("archived.backToChat")}
-      contentClassName="max-w-[82rem] gap-5"
-      onBack={onBack}
-      titlebarActions={titlebarActions}
-    >
+    <div className="grid gap-5">
       <div className="flex min-w-0 items-center justify-between gap-4">
-        <h1 className="oo-text-page-title min-w-0 truncate">{t("archived.title")}</h1>
+        <SectionHeading className="min-w-0">{t("archived.title")}</SectionHeading>
         <ConfirmDialog>
           <ConfirmDialogTrigger asChild>
             <Button
               type="button"
               variant="outline"
+              size="sm"
               className="border-destructive/15 bg-destructive/8 text-destructive hover:bg-destructive/12 hover:text-destructive"
               disabled={!canDeleteAll}
             >
@@ -280,7 +273,7 @@ export function ArchivedRoute({
           <ArchivedEmptyState hasQuery={query.trim().length > 0} />
         )}
       </section>
-    </PageRouteShell>
+    </div>
   )
 }
 
