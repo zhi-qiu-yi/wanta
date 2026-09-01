@@ -122,7 +122,7 @@ interface ChatAreaProps {
   onSelectKnowledgeBase: (id: string) => void
 }
 
-const CHAT_CONTENT_MAX_WIDTH_CLASS = "min-w-0 max-w-[50rem]"
+const CHAT_CONTENT_MAX_WIDTH_CLASS = "min-w-0 max-w-[70rem]"
 const EMPTY_COMPOSER_MAX_WIDTH_CLASS = "min-w-0 max-w-[47.5rem]"
 interface TeamSkillShowcaseItem {
   id: string

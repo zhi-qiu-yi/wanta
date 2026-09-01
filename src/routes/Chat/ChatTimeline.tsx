@@ -69,7 +69,7 @@ import { cn } from "@/lib/utils"
 const GeneratedArtifacts = React.lazy(() =>
   import("@/routes/Chat/GeneratedArtifacts").then((module) => ({ default: module.GeneratedArtifacts })),
 )
-const CHAT_CONTENT_MAX_WIDTH_CLASS = "min-w-0 max-w-[50rem]"
+const CHAT_CONTENT_MAX_WIDTH_CLASS = "min-w-0 max-w-[70rem]"
 const ASSISTANT_TEXT_SMOOTH_WINDOW_MS = 45_000
 
 const EMPTY_ARTIFACT_GROUPS: ResolvedArtifactGroup[] = []
