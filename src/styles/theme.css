@@ -79,7 +79,6 @@
   --success: oklch(0.44 0.13 148);
   --warning: oklch(0.55 0.14 70);
   --info: oklch(0.52 0.17 255);
-  --oo-page-title-foreground: oklch(0.46 0.14 250);
   --oo-markdown-heading-foreground: oklch(0.46 0.14 250);
   --border: oklch(0.91 0.007 278);
   --input: oklch(0.887 0.01 287);
@@ -243,7 +242,6 @@
   --success: oklch(0.72 0.15 148);
   --warning: oklch(0.76 0.16 75);
   --info: oklch(0.72 0.16 255);
-  --oo-page-title-foreground: oklch(0.76 0.12 245);
   --oo-markdown-heading-foreground: oklch(0.76 0.12 245);
   --border: oklch(0.312 0.008 256);
   --input: oklch(0.347 0.01 254);
