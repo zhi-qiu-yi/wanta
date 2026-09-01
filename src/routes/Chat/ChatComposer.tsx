@@ -16,7 +16,18 @@ import type { ChatSendRequest, ChatSendResult } from "@/components/app-shell/app
 import type { QueuedChatMessage, QueuedMessageMovePlacement } from "@/components/app-shell/chat-queue"
 import type { UserFacingError } from "@/lib/user-facing-error"
 
-import { ArrowRight, BrainCircuit, Bug, Copy, Loader2, LogIn, RefreshCw, Server, X } from "lucide-react"
+import {
+  ArrowRight,
+  BrainCircuit,
+  Bug,
+  Copy,
+  CornerDownRight,
+  Loader2,
+  LogIn,
+  RefreshCw,
+  Server,
+  X,
+} from "lucide-react"
 import * as React from "react"
 import { AGENT_PROFILES, isExternalAgentKind } from "../../../electron/agent/contract/profile.ts"
 import { AddCustomModelDialog } from "./AddCustomModelDialog.tsx"
@@ -118,6 +129,8 @@ interface ChatComposerProps {
   onQueuedMessageRemove: (id: string) => void
   onQueuedMessageResume: () => void
   onComposerStateChange?: (state: ComposerState) => void
+  quoteRequest?: { id: number; text: string } | null
+  onQuoteRequestHandled?: (id: number) => void
   onSend: (request: ChatSendRequest) => Promise<ChatSendResult>
   onAnswerQuestion: (requestId: string, answers: string[][]) => Promise<void>
   onPermissionModeSelect: (mode: AgentPermissionMode) => void
@@ -232,6 +245,8 @@ export function ChatComposer({
   onQueuedMessageRemove,
   onQueuedMessageResume,
   onComposerStateChange,
+  quoteRequest,
+  onQuoteRequestHandled,
   onSend,
   onAnswerQuestion,
   onPermissionModeSelect,
@@ -292,7 +307,8 @@ export function ChatComposer({
   }, [])
   const voiceInput = useVoiceComposerInput(appendVoiceTranscription)
   const paletteId = React.useId()
-  const { attachments, command, contextMentions, dismissedTriggerKey, draft, draftSelection } = composer
+  const { attachments, command, contextMentions, dismissedTriggerKey, draft, draftSelection, quote } = composer
+  const lastQuoteRequestIdRef = React.useRef(0)
   React.useEffect(() => {
     setStoredComposerHistory(readStoredComposerHistory(historyScope))
     setHistoryIndex(null)
@@ -453,6 +469,21 @@ export function ChatComposer({
     return () => window.cancelAnimationFrame(frame)
   }, [focusRequest])
 
+  // 选区引用通过一次性请求跨越时间线与 Composer 的组件边界。
+  React.useEffect(() => {
+    if (!quoteRequest || quoteRequest.id === lastQuoteRequestIdRef.current) {
+      return
+    }
+    lastQuoteRequestIdRef.current = quoteRequest.id
+    dispatchComposer({ quote: quoteRequest.text, type: "set-quote" })
+    onQuoteRequestHandled?.(quoteRequest.id)
+    window.requestAnimationFrame(() => {
+      if (!composerDisabled) {
+        textareaRef.current?.focus({ preventScroll: true })
+      }
+    })
+  }, [composerDisabled, onQuoteRequestHandled, quoteRequest])
+
   React.useEffect(() => {
     onComposerStateChange?.(composer)
   }, [composer, onComposerStateChange])
@@ -612,7 +643,7 @@ export function ChatComposer({
       return
     }
     if (
-      (text.trim().length === 0 && attachments.length === 0 && command === null) ||
+      (text.trim().length === 0 && attachments.length === 0 && command === null && !quote) ||
       submitBlocked ||
       composerDisabled
     ) {
@@ -648,7 +679,7 @@ export function ChatComposer({
         model: modelRoutingEnabled ? modelCatalog?.selected : undefined,
         permissionMode,
         reasoningLevel: modelRoutingEnabled ? reasoningLevel : undefined,
-        text: composerSubmissionText({ command, draft: text }),
+        text: composerSubmissionText({ command, draft: text, quote }),
       })
     } catch (err) {
       showUnexpectedInputError(err)
@@ -798,13 +829,14 @@ export function ChatComposer({
     ? !submitBlocked && !composerDisabled && attachments.length === 0 && submitText.trim().length > 0
     : !submitBlocked &&
       !composerDisabled &&
-      (command !== null || submitText.trim().length > 0 || attachments.length > 0)
+      (command !== null || submitText.trim().length > 0 || attachments.length > 0 || Boolean(quote))
   const composerPlaceholder = activePendingQuestion
     ? composerQuestionBlocked
       ? t("chat.questionComposerBlockedPlaceholder")
       : t("chat.questionComposerPlaceholder")
     : placeholder
-  const hasInputAddons = command !== null || attachments.length > 0 || contextMentions.length > 0
+  const hasContextAddons = command !== null || attachments.length > 0 || contextMentions.length > 0
+  const hasInputAddons = hasContextAddons || Boolean(quote)
   // Built-in models use Wanta's budget. BYOA uses only context metadata reported
   // by that native agent; live usage_update values remain authoritative.
   const externalContextWindow = React.useMemo(() => {
@@ -827,41 +859,66 @@ export function ChatComposer({
       onDrop={composerAttachments.handleDrop}
     >
       {hasInputAddons ? (
-        <PromptInputAttachments>
-          <div className="flex max-h-[min(42vh,20rem)] w-full flex-col gap-2 overflow-y-auto pr-1">
-            {command === "bug-report" ? (
-              <div className="flex w-full flex-wrap gap-2">
-                <span
-                  className="oo-border-divider oo-text-body flex h-8 max-w-full min-w-0 items-center gap-2 rounded-lg border bg-background/70 px-2 shadow-xs"
-                  title={t("chat.commandBugReportDescription")}
-                >
-                  <span className="flex size-5 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                    <Bug className="size-3.5" />
-                  </span>
-                  <span className="min-w-0 truncate font-medium text-foreground">{t("chat.commandBugReport")}</span>
-                  {!composerDisabled ? (
-                    <button
-                      type="button"
-                      aria-label={t("chat.contextRemove", { name: t("chat.commandBugReport") })}
-                      className="-mr-1 flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
-                      onClick={() => dispatchComposer({ type: "remove-command" })}
-                    >
-                      <X className="size-3.5" />
-                    </button>
-                  ) : null}
+        <PromptInputAttachments className={cn(quote && "px-0 pt-0 pb-0")}>
+          <div className="flex w-full min-w-0 flex-col">
+            {quote ? (
+              <div className="mb-1 flex min-h-9 w-full min-w-0 items-center gap-2 border-b border-border/50 bg-muted/30 px-3 pt-2.5 pb-2">
+                <CornerDownRight className="size-3.5 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 flex-1 truncate text-xs font-normal text-muted-foreground">
+                  “{quote.replace(/\s+/g, " ")}”
                 </span>
+                <button
+                  type="button"
+                  aria-label={t("chat.quoteRemove")}
+                  className="flex size-5 shrink-0 items-center justify-center rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:outline-none"
+                  onClick={() => dispatchComposer({ quote: "", type: "set-quote" })}
+                >
+                  <X className="size-3.5" />
+                </button>
               </div>
             ) : null}
-            <ContextMentionChips
-              mentions={contextMentions}
-              providerByService={providerByService}
-              onRemove={composerDisabled ? undefined : removeContextMention}
-            />
-            {attachments.length > 0 ? (
-              <AttachmentList
-                attachments={attachments}
-                onRemove={composerDisabled ? undefined : composerAttachments.removeAttachment}
-              />
+            {hasContextAddons ? (
+              <div
+                className={cn(
+                  "flex max-h-[min(42vh,20rem)] w-full min-w-0 flex-col gap-2 overflow-y-auto pr-1",
+                  quote && "px-4 pt-1.5 pb-1.5",
+                )}
+              >
+                {command === "bug-report" ? (
+                  <div className="flex w-full flex-wrap gap-2">
+                    <span
+                      className="oo-border-divider oo-text-body flex h-8 max-w-full min-w-0 items-center gap-2 rounded-lg border bg-background/70 px-2 shadow-xs"
+                      title={t("chat.commandBugReportDescription")}
+                    >
+                      <span className="flex size-5 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                        <Bug className="size-3.5" />
+                      </span>
+                      <span className="min-w-0 truncate font-medium text-foreground">{t("chat.commandBugReport")}</span>
+                      {!composerDisabled ? (
+                        <button
+                          type="button"
+                          aria-label={t("chat.contextRemove", { name: t("chat.commandBugReport") })}
+                          className="-mr-1 flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+                          onClick={() => dispatchComposer({ type: "remove-command" })}
+                        >
+                          <X className="size-3.5" />
+                        </button>
+                      ) : null}
+                    </span>
+                  </div>
+                ) : null}
+                <ContextMentionChips
+                  mentions={contextMentions}
+                  providerByService={providerByService}
+                  onRemove={composerDisabled ? undefined : removeContextMention}
+                />
+                {attachments.length > 0 ? (
+                  <AttachmentList
+                    attachments={attachments}
+                    onRemove={composerDisabled ? undefined : composerAttachments.removeAttachment}
+                  />
+                ) : null}
+              </div>
             ) : null}
           </div>
         </PromptInputAttachments>

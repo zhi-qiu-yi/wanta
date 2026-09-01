@@ -336,6 +336,8 @@ export const ChatArea = React.memo(function ChatArea({
 }: ChatAreaProps) {
   const t = useT()
   const [fullAccessDialogOpen, setFullAccessDialogOpen] = React.useState(false)
+  const [quoteRequest, setQuoteRequest] = React.useState<{ id: number; text: string } | null>(null)
+  const quoteRequestIdRef = React.useRef(0)
   const hasMessages = messages.length > 0
   const activeQuestionCount = pendingQuestions.length
   const turnState = resolveChatTurnState({
@@ -345,6 +347,14 @@ export const ChatArea = React.memo(function ChatArea({
     status,
   })
   const isGenerating = chatTurnShowsGenerating(turnState)
+  // 新选区替换当前引用；递增 id 保证相同文本也能再次触发。
+  const addQuote = React.useCallback((text: string): void => {
+    quoteRequestIdRef.current += 1
+    setQuoteRequest({ id: quoteRequestIdRef.current, text })
+  }, [])
+  const handleQuoteRequestHandled = React.useCallback((id: number): void => {
+    setQuoteRequest((current) => (current?.id === id ? null : current))
+  }, [])
 
   const requestFullAccess = React.useCallback((): void => {
     if (permissionMode === "full_access") {
@@ -398,6 +408,8 @@ export const ChatArea = React.memo(function ChatArea({
       submitDisabled={submitDisabled}
       willQueueMessage={willQueueMessage}
       onComposerStateChange={onComposerStateChange}
+      quoteRequest={quoteRequest}
+      onQuoteRequestHandled={handleQuoteRequestHandled}
       onQueuedMessageMove={onQueuedMessageMove}
       onQueuedMessageRemove={onQueuedMessageRemove}
       onQueuedMessageResume={onQueuedMessageResume}
@@ -481,6 +493,7 @@ export const ChatArea = React.memo(function ChatArea({
       onRejectQuestion={onRejectQuestion}
       questionDrafts={questionDrafts}
       onViewBilling={onViewBilling}
+      onQuote={pendingQuestions.length === 0 ? addQuote : undefined}
     />
   )
 

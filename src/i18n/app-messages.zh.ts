@@ -289,6 +289,8 @@ export const zhCNMessages = {
   "chat.emptyTeamSkillsViewAction": "查看",
   "chat.emptyTeamSkillsAria": "打开团队，查看团队推荐的 Skill",
   "chat.inputPlaceholder": "今天帮你做些什么？ @ 引用文件或账号，/ 调用命令，$ 使用 Skill",
+  "chat.quoteAddToConversation": "添加到对话",
+  "chat.quoteRemove": "移除引用",
   "chat.attachFile": "添加附件",
   "chat.attachFileAction": "添加文件",
   "chat.attachFileOrFolderAction": "添加文件或文件夹",

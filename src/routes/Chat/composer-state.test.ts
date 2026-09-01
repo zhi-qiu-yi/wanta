@@ -5,6 +5,7 @@ import {
   composerReducer,
   composerSubmissionText,
   contextMentionKey,
+  formatComposerQuote,
   hasComposerDraftContent,
   initialComposerState,
   insertVoiceTranscriptionIntoDraft,
@@ -95,8 +96,24 @@ describe("composer state", () => {
   })
 
   it("submits a selected bug report without an optional note", () => {
-    expect(composerSubmissionText({ command: "bug-report", draft: "" })).toBe("/bug-report")
-    expect(composerSubmissionText({ command: null, draft: "ordinary message" })).toBe("ordinary message")
+    expect(composerSubmissionText({ command: "bug-report", draft: "", quote: "" })).toBe("/bug-report")
+    expect(composerSubmissionText({ command: null, draft: "ordinary message", quote: "" })).toBe("ordinary message")
+  })
+
+  it("keeps a selected quote separate until submission", () => {
+    const quoted = composerReducer(initialComposerState(), {
+      quote: " first line\r\n\r\n\r\nsecond line ",
+      type: "set-quote",
+    })
+
+    expect(quoted.quote).toBe("first line\n\nsecond line")
+    expect(hasComposerDraftContent(quoted)).toBe(true)
+    expect(formatComposerQuote("")).toBe("")
+    expect(formatComposerQuote(quoted.quote)).toBe("> first line\n> \n> second line")
+    expect(composerSubmissionText({ ...quoted, draft: "Explain this" })).toBe(
+      "> first line\n> \n> second line\n\nExplain this",
+    )
+    expect(composerReducer(quoted, { type: "reset-after-submit" }).quote).toBe("")
   })
 
   it("inserts voice transcription into the draft at the current cursor", () => {

@@ -15,6 +15,7 @@ export interface ComposerState {
   dismissedTriggerKey: string | null
   draft: string
   draftSelection: { end: number; start: number }
+  quote: string
 }
 
 export type ComposerAction =
@@ -31,6 +32,7 @@ export type ComposerAction =
   | { type: "set-dismissed-trigger-key"; key: string | null }
   | { type: "set-draft"; draft: string; selection: { end: number; start: number } }
   | { type: "set-draft-selection"; selection: { end: number; start: number } }
+  | { type: "set-quote"; quote: string }
 
 export function initialComposerState(): ComposerState {
   return {
@@ -40,6 +42,7 @@ export function initialComposerState(): ComposerState {
     dismissedTriggerKey: null,
     draft: "",
     draftSelection: { end: 0, start: 0 },
+    quote: "",
   }
 }
 
@@ -90,17 +93,38 @@ export function hasComposerDraftContent(state: ComposerState): boolean {
   return (
     state.command !== null ||
     state.draft.trim().length > 0 ||
+    state.quote.trim().length > 0 ||
     state.contextMentions.length > 0 ||
     state.attachments.length > 0
   )
 }
 
-export function composerSubmissionText(state: Pick<ComposerState, "command" | "draft">): string {
-  if (state.command !== "bug-report") {
-    return state.draft
+/** 清理选区文本中的平台换行与过多空行。 */
+export function cleanComposerQuote(text: string): string {
+  return text
+    .replace(/\r\n?/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+}
+
+/** 把独立引用转换为发送给智能体的 Markdown blockquote。 */
+export function formatComposerQuote(text: string): string {
+  const quote = cleanComposerQuote(text)
+  if (!quote) {
+    return ""
   }
+  return quote
+    .split("\n")
+    .map((line) => `> ${line}`)
+    .join("\n")
+}
+
+export function composerSubmissionText(state: Pick<ComposerState, "command" | "draft" | "quote">): string {
   const note = state.draft.trim()
-  return note ? `${BUG_REPORT_COMMAND} ${note}` : BUG_REPORT_COMMAND
+  const body =
+    state.command === "bug-report" ? (note ? `${BUG_REPORT_COMMAND} ${note}` : BUG_REPORT_COMMAND) : state.draft
+  const quote = formatComposerQuote(state.quote)
+  return quote ? (body ? `${quote}\n\n${body}` : quote) : body
 }
 
 export function toCachedComposerState(state: ComposerState): ComposerState {
@@ -173,6 +197,7 @@ export function composerReducer(state: ComposerState, action: ComposerAction): C
         dismissedTriggerKey: null,
         draft: "",
         draftSelection: { end: 0, start: 0 },
+        quote: "",
       }
     case "select-bug-report":
       return {
@@ -187,5 +212,7 @@ export function composerReducer(state: ComposerState, action: ComposerAction): C
       return { ...state, draft: action.draft, draftSelection: action.selection }
     case "set-draft-selection":
       return { ...state, draftSelection: action.selection }
+    case "set-quote":
+      return { ...state, quote: cleanComposerQuote(action.quote) }
   }
 }

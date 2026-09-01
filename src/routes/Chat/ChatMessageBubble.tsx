@@ -8,7 +8,7 @@ import type { ChatErrorKind } from "../../../electron/chat/error.ts"
 import type { ConnectionProvider } from "../../../electron/connections/common.ts"
 import type { AssistantTimelineBlock } from "./assistant-timeline.ts"
 
-import { ChevronDown, ChevronUp } from "lucide-react"
+import { ChevronDown, ChevronUp, CornerDownRight } from "lucide-react"
 import * as React from "react"
 import { assistantBlockClassName } from "./assistant-turn-renderer-model.ts"
 import { AssistantBlock } from "./AssistantTurnRenderer.tsx"
@@ -23,7 +23,12 @@ import {
 import { ContextMentionChips } from "./ContextMentionChips.tsx"
 import { LoadingShimmerText } from "./LoadingShimmerText.tsx"
 import { visibleUserContextMentions } from "./message-context.ts"
-import { copyableMessageText, shouldCollapseUserMessageText, visibleUserText } from "./message-text.ts"
+import {
+  copyableMessageText,
+  shouldCollapseUserMessageText,
+  splitUserMessageQuote,
+  visibleUserText,
+} from "./message-text.ts"
 import { renderBlocks } from "./render-blocks.ts"
 import { normalizeServiceSlug } from "./tool-display.ts"
 import { hasStoppedTool } from "./tool-state.ts"
@@ -70,12 +75,14 @@ export function MessageBubble({
       .map((p) => p.text)
       .join("")
     const visibleText = visibleUserText(text)
+    const quoteSplit = splitUserMessageQuote(visibleText)
+    const bodyText = quoteSplit?.body ?? visibleText
     const attachments = message.parts
       .filter((p) => p.kind === "attachment" && p.attachment)
       .map((p) => attachmentWithPreview(p.attachment as ChatAttachment))
     const contextMentions = visibleUserContextMentions(message.contextMentions)
-    const collapsible = shouldCollapseUserMessageText(visibleText)
-    if (!visibleText && attachments.length === 0 && contextMentions.length === 0) {
+    const collapsible = shouldCollapseUserMessageText(bodyText)
+    if (!bodyText && !quoteSplit && attachments.length === 0 && contextMentions.length === 0) {
       return null
     }
     return (
@@ -88,7 +95,13 @@ export function MessageBubble({
           />
         ) : null}
         {attachments.length > 0 ? <AttachmentList attachments={attachments} className="justify-end" /> : null}
-        {visibleText ? (
+        {quoteSplit ? (
+          <div className="flex max-w-[min(34rem,85%)] items-start gap-1.5 px-1 text-sm leading-relaxed text-muted-foreground">
+            <CornerDownRight className="mt-1 size-3.5 shrink-0 opacity-70" />
+            <span className="line-clamp-2 min-w-0 break-words whitespace-pre-wrap">{quoteSplit.quote}</span>
+          </div>
+        ) : null}
+        {bodyText ? (
           <MessageContent className={cn(collapsible && "pb-2")}>
             <div className="relative min-w-0">
               <div
@@ -97,7 +110,7 @@ export function MessageBubble({
                   collapsible && !userMessageExpanded && "max-h-72 overflow-hidden",
                 )}
               >
-                {visibleText}
+                {bodyText}
               </div>
               {collapsible && !userMessageExpanded ? (
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-b from-transparent to-secondary" />

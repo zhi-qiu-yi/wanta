@@ -51,6 +51,7 @@ import { AssistantTimelineMessage, MessageBubble, PlainAssistantActivity } from 
 import { assistantResponseActionTextByMessageId } from "./message-text.ts"
 import { PermissionRequiredCard } from "./PermissionRequiredCard.tsx"
 import { QuestionPromptCard } from "./QuestionPromptCard.tsx"
+import { QuoteSelectionToolbar } from "./QuoteSelectionToolbar.tsx"
 import { normalizeServiceSlug } from "./tool-display.ts"
 import { hasStoppedTool } from "./tool-state.ts"
 import { terminalTurnOutcomeStatus } from "./turn-outcome-receipt-model.ts"
@@ -375,6 +376,7 @@ interface ChatTimelineProps {
   onRejectQuestion: (requestId: string) => Promise<void>
   questionDrafts: QuestionDraftStore
   onViewBilling?: () => void
+  onQuote?: (text: string) => void
 }
 
 export const ChatTimeline = React.memo(function ChatTimeline({
@@ -399,8 +401,14 @@ export const ChatTimeline = React.memo(function ChatTimeline({
   onRejectQuestion,
   questionDrafts,
   onViewBilling,
+  onQuote,
 }: ChatTimelineProps) {
   const conversationRef = React.useRef<StickToBottomContext | null>(null)
+  const getScrollElement = React.useCallback(() => conversationRef.current?.scrollRef.current ?? null, [])
+  const getSelectionRoot = React.useCallback(
+    () => getScrollElement()?.querySelector<HTMLElement>('[data-selectable="true"]') ?? null,
+    [getScrollElement],
+  )
   const lastAutoScrolledUserMessageIdRef = React.useRef<string | null>(null)
   const turnGroupingRef = React.useRef<ChatTurnGrouping>({
     associationTurns: [],
@@ -630,6 +638,13 @@ export const ChatTimeline = React.memo(function ChatTimeline({
         ))}
       </ConversationContent>
       <ConversationScrollButton />
+      {onQuote ? (
+        <QuoteSelectionToolbar
+          getRootElement={getSelectionRoot}
+          getScrollElement={getScrollElement}
+          onQuote={onQuote}
+        />
+      ) : null}
     </Conversation>
   )
 })

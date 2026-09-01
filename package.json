@@ -1,7 +1,7 @@
 {
   "name": "wanta",
   "displayName": "Wanta",
-  "version": "0.0.0",
+  "version": "0.1.180",
   "private": true,
   "description": "Wanta — open-source desktop AI agent for connected apps, local files, and automation.",
   "homepage": "https://wanta.ai/",

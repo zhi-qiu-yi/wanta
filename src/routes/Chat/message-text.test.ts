@@ -4,6 +4,7 @@ import {
   copyableMessageText,
   reuseStableTextMap,
   shouldCollapseUserMessageText,
+  splitUserMessageQuote,
   visibleUserText,
 } from "./message-text.ts"
 
@@ -28,6 +29,16 @@ describe("visibleUserText", () => {
     expect(visibleUserText('Called the Read tool with the following input: {"filePath":"/tmp/{a}.png"}  hello')).toBe(
       "hello",
     )
+  })
+})
+
+describe("splitUserMessageQuote", () => {
+  it("splits a leading composer quote from the user message body", () => {
+    expect(splitUserMessageQuote("> first line\n> \n> second line\n\nExplain this")).toEqual({
+      body: "Explain this",
+      quote: "first line\n\nsecond line",
+    })
+    expect(splitUserMessageQuote("ordinary message")).toBeNull()
   })
 })
 

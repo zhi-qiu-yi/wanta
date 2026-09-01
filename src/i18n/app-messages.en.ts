@@ -302,6 +302,8 @@ export const enMessages = {
   "chat.emptyTeamSkillsViewAction": "View",
   "chat.emptyTeamSkillsAria": "Open teams to view recommended skills",
   "chat.inputPlaceholder": "What can I help with? @ for files or accounts, / for commands, $ for skills",
+  "chat.quoteAddToConversation": "Add to chat",
+  "chat.quoteRemove": "Remove quote",
   "chat.attachFile": "Add attachment",
   "chat.attachFileAction": "Add file",
   "chat.attachFileOrFolderAction": "Add file or folder",

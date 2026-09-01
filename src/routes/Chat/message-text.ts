@@ -17,6 +17,30 @@ export function visibleUserText(text: string): string {
   return afterPrefix.slice(jsonEnd + 1).trimStart()
 }
 
+/** 识别“添加到对话”生成的前置 Markdown 引用，供消息气泡单独展示。 */
+export function splitUserMessageQuote(text: string): { body: string; quote: string } | null {
+  const lines = text.split("\n")
+  let end = 0
+  while (end < lines.length && /^>(\s|$)/.test(lines[end] ?? "")) {
+    end += 1
+  }
+  if (end === 0) {
+    return null
+  }
+  const quote = lines
+    .slice(0, end)
+    .map((line) => line.replace(/^> ?/, ""))
+    .join("\n")
+    .trim()
+  if (!quote) {
+    return null
+  }
+  return {
+    body: lines.slice(end).join("\n").trim(),
+    quote,
+  }
+}
+
 export function shouldCollapseUserMessageText(text: string): boolean {
   return (
     text.length > USER_MESSAGE_COLLAPSE_TEXT_LENGTH || text.split(/\r\n|\r|\n/).length > USER_MESSAGE_COLLAPSE_LINES
