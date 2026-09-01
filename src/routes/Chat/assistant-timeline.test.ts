@@ -244,6 +244,28 @@ describe("assistantTimelineBlocks", () => {
     expect(segments[0]?.blocks.map(({ block }) => block.kind)).toEqual(["tools", "tools", "text", "tools"])
   })
 
+  it("keeps one app-server message with interleaved tools in one process disclosure", () => {
+    const segments = segmentAssistantTimeline([
+      message(
+        "codex-turn",
+        [
+          textPart("prelude", "I will inspect the implementation."),
+          toolPart("tool-1"),
+          textPart("progress-1", "The first path is clear; checking the caller."),
+          toolPart("tool-2"),
+          textPart("progress-2", "I found the regression; running tests."),
+          toolPart("tool-3"),
+          textPart("final", "Fixed the tool labels and process grouping."),
+        ],
+        "stop",
+      ),
+    ])
+
+    expect(segments.map(({ kind }) => kind)).toEqual(["response", "process", "response"])
+    expect(segments[1]?.blocks.map(({ block }) => block.kind)).toEqual(["tools", "text", "tools", "text", "tools"])
+    expect(textFromTimelineBlocks(segments[2]?.blocks ?? [])).toBe("Fixed the tool labels and process grouping.")
+  })
+
   it("holds an active post-tool tail out of both visible lanes until the turn settles", () => {
     const toolMessage = message("a1", [toolPart("tool-1")], "tool-calls")
     const finalMessage = message("a2", [textPart("final", "The image is ready.")])

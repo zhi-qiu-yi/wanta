@@ -36,19 +36,33 @@ function isToolCallFinishReason(reason: string | undefined): boolean {
   return reason === "tool-calls" || reason === "tool_calls" || reason === "tool-use" || reason === "tool_use"
 }
 
-function blockSegmentKind(item: AssistantTimelineBlock, phase: AssistantTimelinePhase): AssistantTimelinePhase {
+/** 判断时间线块是否属于可折叠的处理过程，失败状态则保留在回答区。 */
+function isProcessBlock(item: AssistantTimelineBlock): boolean {
+  return (
+    item.block.kind === "tools" ||
+    (item.block.kind === "status" &&
+      item.block.part.statusType !== "connectionFailed" &&
+      item.block.part.statusType !== "runtimeFailed")
+  )
+}
+
+function blockSegmentKind(
+  item: AssistantTimelineBlock,
+  phase: AssistantTimelinePhase,
+  hasLaterProcessBlockInMessage: boolean,
+): AssistantTimelinePhase {
   switch (item.block.kind) {
     case "tools":
       return "process"
     case "text":
-      // A non-tool finish reason is explicit final-response evidence. Without
-      // it, narration follows the current turn phase: text seen before the
-      // first tool stays put, while text between tools remains in processing.
-      return item.message.finishReason && !isToolCallFinishReason(item.message.finishReason) ? "response" : phase
-    case "status":
-      return item.block.part.statusType === "connectionFailed" || item.block.part.statusType === "runtimeFailed"
+      // app-server 的一个 message 会承载整轮多个文本和工具；只有最后一个工具后的完成文本才是最终回答。
+      return item.message.finishReason &&
+        !isToolCallFinishReason(item.message.finishReason) &&
+        !hasLaterProcessBlockInMessage
         ? "response"
-        : "process"
+        : phase
+    case "status":
+      return isProcessBlock(item) ? "process" : "response"
     case "attachment":
     case "error":
       return "response"
@@ -65,6 +79,12 @@ export function segmentAssistantTimeline(
 ): AssistantTimelineSegment[] {
   const blocks = assistantTimelineBlocks(messages)
   const segments: AssistantTimelineSegment[] = []
+  const lastProcessBlockByMessage = new Map<string, number>()
+  for (const [index, item] of blocks.entries()) {
+    if (isProcessBlock(item)) {
+      lastProcessBlockByMessage.set(item.message.id, index)
+    }
+  }
   let phase: AssistantTimelinePhase = "response"
   let pendingText: AssistantTimelineBlock[] = []
   const append = (kind: AssistantTimelineSegmentKind, items: AssistantTimelineBlock[]): void => {
@@ -82,8 +102,8 @@ export function segmentAssistantTimeline(
     pendingText = []
   }
 
-  for (const item of blocks) {
-    const kind = blockSegmentKind(item, phase)
+  for (const [index, item] of blocks.entries()) {
+    const kind = blockSegmentKind(item, phase, (lastProcessBlockByMessage.get(item.message.id) ?? -1) > index)
     if (item.block.kind === "tools" || (item.block.kind === "status" && kind === "process")) {
       flushPending("process")
       phase = "process"

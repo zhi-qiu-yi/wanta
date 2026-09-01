@@ -1,4 +1,4 @@
-import type { AgentPermissionMode, ChatPermissionReply, ChatPermissionRequest } from "../../chat/common.ts"
+import type { AgentPermissionMode, ChatMessage, ChatPermissionReply, ChatPermissionRequest } from "../../chat/common.ts"
 import type {
   AgentSendOptions,
   CancelAgentInput,
@@ -109,6 +109,29 @@ interface ToolState {
   messageId: string
   tool: string
   input: Record<string, unknown>
+  title?: string
+}
+
+interface CodexToolProjection {
+  tool: string
+  input: Record<string, unknown>
+  title?: string
+}
+
+/** 将未知 JSON 值收窄为工具输入对象，避免把数组或标量写进统一事件契约。 */
+function asToolInput(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
+}
+
+/** 把 app-server 的结构化工具结果转成 transcript 可持久化的文本。 */
+function toolPayloadText(value: unknown): string | undefined {
+  if (typeof value === "string") return value
+  if (value === undefined || value === null) return undefined
+  try {
+    return JSON.stringify(value, null, 2)
+  } catch {
+    return String(value)
+  }
 }
 /** Wanta 会话对应的 Codex turn 状态，用于把异步通知还原到正确消息。 */
 interface TurnState {
@@ -313,6 +336,25 @@ export class CodexAppServerAdapter extends ExternalAgentAdapter {
     this.desiredModes.delete(sessionId)
     this.threads.delete(sessionId)
     this.turns.delete(sessionId)
+  }
+
+  /** 恢复旧 transcript 时同步归一原生工具名，让升级前的会话也使用当前展示协议。 */
+  protected override sanitizeRestoredMessages(messages: ChatMessage[]): ChatMessage[] {
+    return messages.map((message) => ({
+      ...message,
+      parts: message.parts.map((part) => {
+        if (part.kind !== "tool") return part
+        const projection = this.toolProjection({ ...part.input, type: part.tool })
+        if (!projection) return part
+        const { title: _nativeTitle, ...rest } = part
+        return {
+          ...rest,
+          tool: projection.tool,
+          input: projection.input,
+          ...(projection.title ? { title: projection.title } : {}),
+        }
+      }),
+    }))
   }
 
   /** 构造 Codex 的文本和本地图片输入项；图片只传路径，不内联文件内容。 */
@@ -656,23 +698,15 @@ export class CodexAppServerAdapter extends ExternalAgentAdapter {
   /** 将 item/started 与 item/completed 映射为统一的工具调用生命周期事件。 */
   private handleItem(sessionId: string, turn: TurnState | undefined, item: any, started: boolean): void {
     if (!turn || !item || typeof item.id !== "string") return
-    // 文本、推理和计划 item 已由专用通知处理，避免重复创建工具卡片。
-    if (
-      item.type === "agentMessage" ||
-      item.type === "userMessage" ||
-      item.type === "reasoning" ||
-      item.type === "plan"
-    )
-      return
-    const tool = item.type
-    const input = this.toolInput(item)
+    // 仅投影明确支持的工具 item；消息、推理、计划及未知新类型不能退化成通用工具卡片。
+    const projection = this.toolProjection(item)
+    if (!projection) return
     if (started) {
       const state = {
         threadId: turn.threadId,
         turnId: turn.turnId,
         messageId: turn.messageId ?? `codex-${turn.turnId}`,
-        tool,
-        input,
+        ...projection,
       }
       turn.tools.set(item.id, state)
       this.emit({
@@ -682,16 +716,17 @@ export class CodexAppServerAdapter extends ExternalAgentAdapter {
           messageId: state.messageId,
           partId: item.id,
           callId: item.id,
-          tool,
-          input,
+          tool: state.tool,
+          input: state.input,
           status: "running",
-          title: tool,
+          ...(state.title ? { title: state.title } : {}),
         },
       })
     } else {
       const state = turn.tools.get(item.id)
       const messageId = state?.messageId ?? turn.messageId ?? `codex-${turn.turnId}`
       const status = item.status === "failed" || item.status === "declined" ? "error" : "completed"
+      const output = this.toolOutput(item)
       this.emit({
         event: "toolCallResult",
         data: {
@@ -699,24 +734,81 @@ export class CodexAppServerAdapter extends ExternalAgentAdapter {
           messageId,
           partId: item.id,
           callId: item.id,
-          tool: state?.tool ?? tool,
+          tool: state?.tool ?? projection.tool,
           status,
-          input: state?.input ?? input,
-          ...(item.aggregatedOutput ? { output: item.aggregatedOutput } : {}),
-          ...(status === "error" ? { error: item.error ?? "Tool failed" } : {}),
+          input: state?.input ?? projection.input,
+          ...((state?.title ?? projection.title) ? { title: state?.title ?? projection.title } : {}),
+          ...(output !== undefined ? { output } : {}),
+          ...(status === "error" ? { error: this.toolError(item) } : {}),
         },
       })
       turn.tools.delete(item.id)
     }
   }
 
-  /** 提取不同 Codex 工具 item 的稳定输入摘要，供 UI 和 transcript 使用。 */
-  private toolInput(item: any): Record<string, unknown> {
-    if (item.type === "commandExecution") return { command: item.command, cwd: item.cwd }
-    if (item.type === "fileChange") return { changes: item.changes }
-    if (item.type === "mcpToolCall") return { server: item.server, tool: item.tool, arguments: item.arguments }
-    if (item.type === "dynamicToolCall") return { tool: item.tool, arguments: item.arguments }
-    return {}
+  /** 将 Codex 原生 item 名称和参数归一为现有 UI 能识别的工具词汇。 */
+  private toolProjection(item: any): CodexToolProjection | undefined {
+    switch (item.type) {
+      case "commandExecution":
+        return {
+          tool: "bash",
+          input: {
+            command: item.command,
+            ...(typeof item.cwd === "string" ? { cwd: item.cwd } : {}),
+          },
+        }
+      case "fileChange": {
+        const changes = Array.isArray(item.changes) ? item.changes : []
+        const firstPath = typeof changes[0]?.path === "string" ? changes[0].path : undefined
+        const onlyAdds = changes.length > 0 && changes.every((change: any) => change?.kind?.type === "add")
+        return {
+          tool: onlyAdds ? "write" : "edit",
+          input: { ...(firstPath ? { filePath: firstPath } : {}), changes },
+        }
+      }
+      case "mcpToolCall": {
+        const tool = typeof item.tool === "string" && item.tool ? item.tool : "other"
+        const server = typeof item.server === "string" && item.server ? item.server : undefined
+        return {
+          tool,
+          input: asToolInput(item.arguments),
+          ...(server ? { title: `${server}.${tool}` } : {}),
+        }
+      }
+      case "dynamicToolCall": {
+        const tool = typeof item.tool === "string" && item.tool ? item.tool : "other"
+        return { tool, input: asToolInput(item.arguments) }
+      }
+      case "imageView":
+        return { tool: "read", input: { filePath: item.path } }
+      case "collabAgentToolCall":
+        return {
+          tool: "task",
+          input: {
+            operation: item.tool,
+            ...(typeof item.prompt === "string" ? { prompt: item.prompt } : {}),
+            ...(Array.isArray(item.receiverThreadIds) ? { receiverThreadIds: item.receiverThreadIds } : {}),
+          },
+          ...(typeof item.tool === "string" ? { title: item.tool } : {}),
+        }
+      default:
+        return undefined
+    }
+  }
+
+  /** 从不同工具 item 中提取已完成结果，保留空字符串等有效输出。 */
+  private toolOutput(item: any): string | undefined {
+    if (item.type === "commandExecution") return toolPayloadText(item.aggregatedOutput)
+    if (item.type === "mcpToolCall") return toolPayloadText(item.result)
+    if (item.type === "dynamicToolCall") return toolPayloadText(item.contentItems)
+    return undefined
+  }
+
+  /** 将 app-server 的字符串或结构化错误统一为可展示文本。 */
+  private toolError(item: any): string {
+    if (typeof item.error === "string" && item.error) return item.error
+    if (typeof item.error?.message === "string" && item.error.message) return item.error.message
+    return "Tool failed"
   }
 
   /** 把 Codex token usage 归一化为 Wanta 的上下文计量结构。 */
